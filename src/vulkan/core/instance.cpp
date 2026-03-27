@@ -1,4 +1,5 @@
 #include "instance.h"
+#include <GLFW/glfw3.h>
 #include <cstdint>
 #include <cstring>
 #include <fmt/base.h>
@@ -38,11 +39,16 @@ VkInstance createInstance() {
         fmt::println("Validation layers unsupported");
     };
 
+    uint32_t glfwExtCount = 0;
+    const char** glfwExt = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+
     VkInstanceCreateInfo instanceCreateInfo{};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instanceCreateInfo.enabledLayerCount = validationLayers.size();
     instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
     instanceCreateInfo.pApplicationInfo = &appInfo;
+    instanceCreateInfo.ppEnabledExtensionNames = glfwExt;
+    instanceCreateInfo.enabledExtensionCount = glfwExtCount;
 
     VkInstance instance;
     if (vkCreateInstance(&instanceCreateInfo, nullptr, &instance) != VK_SUCCESS) {

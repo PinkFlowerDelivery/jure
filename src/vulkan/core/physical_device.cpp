@@ -1,25 +1,11 @@
 #include "physical_device.h"
 #include "fmt/base.h"
+#include "queueUtils.h"
+#include "vulkan/context/vulkan_context.h"
+#include <GLFW/glfw3.h>
 #include <cstdint>
 #include <vector>
 #include <vulkan/vulkan_core.h>
-
-uint32_t findQueueFamilies(const VkPhysicalDevice& physicalDevice) {
-    uint32_t queueFamiliesCount;
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamiliesCount, nullptr);
-
-    std::vector<VkQueueFamilyProperties> familyProps(queueFamiliesCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamiliesCount,
-                                             familyProps.data());
-
-    uint32_t i = 0;
-    for (auto& props : familyProps) {
-        if (props.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-            return i;
-        }
-        i++;
-    }
-}
 
 int32_t rateDevice(const VkPhysicalDevice& physicalDevice) {
     VkPhysicalDeviceProperties props;
@@ -41,21 +27,28 @@ int32_t rateDevice(const VkPhysicalDevice& physicalDevice) {
     return score;
 }
 
-bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice) {
+bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR& surface) {
     VkPhysicalDeviceFeatures pdFeatures;
     vkGetPhysicalDeviceFeatures(physicalDevice, &pdFeatures);
 
     VkPhysicalDeviceProperties pdProps;
     vkGetPhysicalDeviceProperties(physicalDevice, &pdProps);
 
+    QueueFamilyContext queueFamilyContext = queueUtils::findQueueFamilies(physicalDevice, surface);
+
     if (!pdFeatures.geometryShader) {
+        return false;
+    }
+
+    if (!queueFamilyContext.graphicsFamily.has_value() &&
+        !queueFamilyContext.presentFamily.has_value()) {
         return false;
     }
 
     return true;
 }
 
-VkPhysicalDevice pickPhysicalDevice(const VkInstance& instance) {
+VkPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface) {
     uint32_t physicalDeviceCount;
     vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr);
 
@@ -65,7 +58,7 @@ VkPhysicalDevice pickPhysicalDevice(const VkInstance& instance) {
     VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
     int32_t bestScore = 0;
     for (const auto& device : physicalDevices) {
-        if (!isDeviceSuitable(device)) {
+        if (!isDeviceSuitable(device, surface)) {
             continue;
         }
 
