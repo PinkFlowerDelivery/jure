@@ -36,6 +36,9 @@ bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR
 
     QueueFamilyContext queueFamilyContext = queueUtils::findQueueFamilies(physicalDevice, surface);
 
+    uint32_t formatCount;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+
     if (!pdFeatures.geometryShader) {
         return false;
     }

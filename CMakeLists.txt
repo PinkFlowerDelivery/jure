@@ -22,6 +22,6 @@ endif()
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
-add_executable(jure src/main.cpp src/vulkan/core/instance.cpp src/vulkan/context/vulkan_context.cpp src/vulkan/core/physical_device.cpp src/vulkan/core/virtual_device_queue.cpp src/glfw/initGlfw.cpp src/vulkan/core/surface.cpp src/vulkan/core/queueUtils.cpp src/vulkan/core/swapchain.cpp)
+add_executable(jure src/main.cpp src/vulkan/core/instance.cpp src/vulkan/context/vulkan_context.cpp src/vulkan/core/physical_device.cpp src/vulkan/core/virtual_device_queue.cpp src/glfw/initGlfw.cpp src/vulkan/core/surface.cpp src/vulkan/core/queueUtils.cpp src/vulkan/core/swapchain.cpp src/vulkan/core/imageView.cpp)
 target_include_directories(jure PRIVATE src)
 target_link_libraries(jure fmt::fmt Vulkan::Vulkan glfw)

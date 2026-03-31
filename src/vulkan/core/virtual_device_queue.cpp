@@ -1,17 +1,16 @@
 #include "virtual_device_queue.h"
-#include "queueUtils.h"
 #include <set>
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-VkDevice createDevice(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR& surface) {
+VkDevice createDevice(const VkPhysicalDevice& physicalDevice,
+                      const QueueFamilyContext& queueFamilyContext) {
 
     std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     float queuePriority = 1.0f;
-    std::set<uint32_t> uniqueQueueFamilies = {
-        queueUtils::findQueueFamilies(physicalDevice, surface).graphicsFamily.value(),
-        queueUtils::findQueueFamilies(physicalDevice, surface).presentFamily.value()};
+    std::set<uint32_t> uniqueQueueFamilies = {queueFamilyContext.graphicsFamily.value(),
+                                              queueFamilyContext.presentFamily.value()};
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 
