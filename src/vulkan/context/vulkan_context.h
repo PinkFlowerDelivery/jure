@@ -1,9 +1,8 @@
 #pragma once
 
+#include "vulkan/core/imageView.h"
 #include <GLFW/glfw3.h>
 #include <optional>
-#include <utility>
-#include <vector>
 #include <vulkan/vulkan_core.h>
 
 struct QueueFamilyContext {
@@ -25,7 +24,7 @@ struct VulkanContext {
     VkDevice device;
     VkSurfaceKHR surface;
     VkSwapchainKHR swapchain;
-    std::pair<VkImageView, std::vector<VkImageView>> imageViews;
+    ImageView imageViews;
 };
 
 VulkanContext createContext(GLFWwindow* window);

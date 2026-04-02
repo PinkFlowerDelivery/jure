@@ -4,5 +4,11 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
-std::pair<VkImageView, std::vector<VkImageView>> createImageView(const VkDevice& device,
-                                                                 const VkSwapchainKHR& swapchain);
+struct ImageView {
+    std::vector<VkImageView> imageViews;
+    VkImageView depthImageView;
+};
+
+ImageView createImageView(const VkPhysicalDevice& physicalDevice, const VkDevice& device,
+                          const VkSwapchainKHR& swapchain, const VkImage& depthImage,
+                          const VkFormat& colorFormat);

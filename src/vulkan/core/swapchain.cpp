@@ -1,22 +1,12 @@
 #include "swapchain.h"
 #include "vulkan/context/vulkan_context.h"
+#include "vulkan/utils/vulkan_helpers.h"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cstdint>
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
-
-VkFormat chooseSwapchainFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
-    for (const auto& format : availableFormats) {
-        if (format.format == VK_FORMAT_B8G8R8A8_SRGB &&
-            format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-            return format.format;
-        }
-    }
-
-    return availableFormats[0].format;
-};
 
 VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window) {
     if (capabilities.currentExtent.width != UINT32_MAX) {
@@ -38,9 +28,11 @@ VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities, G
     return actualExtent;
 }
 
-VkSwapchainKHR createSwapchain(const VkDevice& device, const VkPhysicalDevice& physicalDevice,
-                               const VkSurfaceKHR& surface,
-                               const QueueFamilyContext& queueFamilyContext, GLFWwindow* window) {
+SwapchainDetails createSwapchain(const VkDevice& device, const VkPhysicalDevice& physicalDevice,
+                                 const VkSurfaceKHR& surface,
+                                 const QueueFamilyContext& queueFamilyContext, GLFWwindow* window) {
+
+    SwapchainDetails details{};
 
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
@@ -52,13 +44,16 @@ VkSwapchainKHR createSwapchain(const VkDevice& device, const VkPhysicalDevice& p
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
 
+    details.extent = chooseSwapchainExtent(surfaceCapabilities, window);
+    details.imageFormat = vulkan_helpers::chooseFormat(surfaceFormat).format;
+
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.surface = surface;
     createInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
-    createInfo.imageFormat = chooseSwapchainFormat(surfaceFormat);
+    createInfo.imageFormat = details.imageFormat;
     createInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-    createInfo.imageExtent = chooseSwapchainExtent(surfaceCapabilities, window);
+    createInfo.imageExtent = details.extent;
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     createInfo.preTransform = surfaceCapabilities.currentTransform;
@@ -79,10 +74,8 @@ VkSwapchainKHR createSwapchain(const VkDevice& device, const VkPhysicalDevice& p
         createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
     }
 
-    VkSwapchainKHR swapchain;
-
-    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &details.swapchain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
     };
-    return swapchain;
+    return details;
 }

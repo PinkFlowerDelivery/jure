@@ -1,7 +1,7 @@
 #include "physical_device.h"
 #include "fmt/base.h"
-#include "queueUtils.h"
 #include "vulkan/context/vulkan_context.h"
+#include "vulkan/utils/vulkan_helpers.h"
 #include <GLFW/glfw3.h>
 #include <cstdint>
 #include <vector>
@@ -34,7 +34,8 @@ bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR
     VkPhysicalDeviceProperties pdProps;
     vkGetPhysicalDeviceProperties(physicalDevice, &pdProps);
 
-    QueueFamilyContext queueFamilyContext = queueUtils::findQueueFamilies(physicalDevice, surface);
+    QueueFamilyContext queueFamilyContext =
+        vulkan_helpers::findQueueFamilies(physicalDevice, surface);
 
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
