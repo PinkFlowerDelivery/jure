@@ -4,11 +4,11 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-VkDevice createDevice(const VkPhysicalDevice& physicalDevice,
-                      const QueueFamilyContext& queueFamilyContext) {
+DeviceResult createVirtualDevice(VkPhysicalDevice physicalDevice) {
 
     std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     float queuePriority = 1.0f;
+
     std::set<uint32_t> uniqueQueueFamilies = {queueFamilyContext.graphicsFamily.value(),
                                               queueFamilyContext.presentFamily.value()};
 
