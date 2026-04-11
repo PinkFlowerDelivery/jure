@@ -1,11 +1,13 @@
 #include "glfw/initGlfw.h"
-#include "vulkan/context/vulkan_context.h"
+#include "vk/core/vk_core.h"
+#include "vk/window/vk_window.h"
 #include <GLFW/glfw3.h>
 
 int main() {
     GLFWwindow* window = createWindow(640, 480, "vk");
 
-    VulkanContext ctx = createContext(window);
+    VulkanCore core(window);
+    VulkanWindow vkWindow(core, window);
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();

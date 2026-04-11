@@ -1,7 +1,5 @@
 #pragma once
 
-#include "vulkan/core/imageView.h"
-#include <GLFW/glfw3.h>
 #include <optional>
 #include <vulkan/vulkan_core.h>
 
@@ -15,17 +13,9 @@ struct QueueFamilyContext {
     }
 };
 
-struct VulkanContext {
-
+struct SelectedPhysicalDevice {
+    VkPhysicalDevice device = VK_NULL_HANDLE;
     QueueFamilyContext queueFamilyContext;
-
-    VkInstance instance;
-    VkPhysicalDevice physicalDevice;
-    VkDevice device;
-    VkSurfaceKHR surface;
-    VkSwapchainKHR swapchain;
-    ImageView imageViews;
 };
 
-VulkanContext createContext(GLFWwindow* window);
-void destroyContext(VulkanContext& ctx, GLFWwindow* window);
+SelectedPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface);

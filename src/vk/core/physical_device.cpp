@@ -1,7 +1,4 @@
 #include "physical_device.h"
-#include "fmt/base.h"
-#include "vulkan/context/vulkan_context.h"
-#include "vulkan/utils/vulkan_helpers.h"
 #include <GLFW/glfw3.h>
 #include <cstdint>
 #include <vector>
@@ -27,15 +24,41 @@ int32_t rateDevice(const VkPhysicalDevice& physicalDevice) {
     return score;
 }
 
-bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR& surface) {
+QueueFamilyContext findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+    uint32_t queueFamiliesCount;
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamiliesCount, nullptr);
+
+    std::vector<VkQueueFamilyProperties> familyProps(queueFamiliesCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamiliesCount,
+                                             familyProps.data());
+
+    QueueFamilyContext context;
+
+    uint32_t i = 0;
+    for (auto& props : familyProps) {
+
+        VkBool32 presentSupport = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentSupport);
+
+        if (props.queueFlags & VK_QUEUE_GRAPHICS_BIT && presentSupport) {
+            context.graphicsFamily = i;
+        }
+
+        if (presentSupport) {
+            context.presentFamily = i;
+        }
+    }
+
+    return context;
+}
+
+bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR& surface,
+                      QueueFamilyContext queueFamilyContext) {
     VkPhysicalDeviceFeatures pdFeatures;
     vkGetPhysicalDeviceFeatures(physicalDevice, &pdFeatures);
 
     VkPhysicalDeviceProperties pdProps;
     vkGetPhysicalDeviceProperties(physicalDevice, &pdProps);
-
-    QueueFamilyContext queueFamilyContext =
-        vulkan_helpers::findQueueFamilies(physicalDevice, surface);
 
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
@@ -52,7 +75,10 @@ bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR
     return true;
 }
 
-VkPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface) {
+SelectedPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface) {
+
+    SelectedPhysicalDevice result{};
+
     uint32_t physicalDeviceCount;
     vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr);
 
@@ -61,8 +87,13 @@ VkPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceK
 
     VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
     int32_t bestScore = 0;
+
+    QueueFamilyContext queueFamilyContext;
+
     for (const auto& device : physicalDevices) {
-        if (!isDeviceSuitable(device, surface)) {
+        queueFamilyContext = findQueueFamilies(device, surface);
+
+        if (!isDeviceSuitable(device, surface, queueFamilyContext)) {
             continue;
         }
 
@@ -74,9 +105,8 @@ VkPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceK
         }
     }
 
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(bestDevice, &props);
-    fmt::println("Prefer device: {}", props.deviceName);
+    result.device = bestDevice;
+    result.queueFamilyContext = queueFamilyContext;
 
-    return bestDevice;
+    return result;
 };

@@ -1,12 +1,11 @@
-#include "imageView.h"
-#include "vulkan/utils/vulkan_helpers.h"
+#include "imageViews.h"
+#include "vk/window/image.h"
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-ImageView createImageView(const VkPhysicalDevice& physicalDevice, const VkDevice& device,
-                          const VkSwapchainKHR& swapchain, const VkImage& depthImage,
-                          const VkFormat& colorFormat) {
+ImageView createImageViews(VkDevice device, VkSwapchainKHR swapchain, DepthImage depthImage,
+                           VkFormat colorFormat) {
     ImageView view;
 
     uint32_t imageCount;
@@ -45,13 +44,10 @@ ImageView createImageView(const VkPhysicalDevice& physicalDevice, const VkDevice
 
     VkImageViewCreateInfo createInfoDepth{};
     createInfoDepth.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    createInfoDepth.image = depthImage;
+    createInfoDepth.image = depthImage.image;
     createInfoDepth.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
-    createInfoDepth.format = vulkan_helpers::findSupportedDepthFormat(
-        physicalDevice,
-        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    createInfoDepth.format = depthImage.format;
 
     createInfoDepth.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfoDepth.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
