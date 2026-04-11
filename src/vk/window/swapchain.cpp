@@ -1,6 +1,4 @@
 #include "swapchain.h"
-#include "vulkan/context/vulkan_context.h"
-#include "vulkan/utils/vulkan_helpers.h"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cstdint>
@@ -8,7 +6,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window) {
+VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR capabilities, GLFWwindow* window) {
     if (capabilities.currentExtent.width != UINT32_MAX) {
         return capabilities.currentExtent;
     }
@@ -28,24 +26,34 @@ VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities, G
     return actualExtent;
 }
 
-SwapchainDetails createSwapchain(const VkDevice& device, const VkPhysicalDevice& physicalDevice,
-                                 const VkSurfaceKHR& surface,
-                                 const QueueFamilyContext& queueFamilyContext, GLFWwindow* window) {
+VkFormat chooseSwapchainFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+    for (const auto& availableFormat : availableFormats) {
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
+            availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            return availableFormat.format;
+        }
+    }
+    return availableFormats[0].format;
+}
+
+SwapchainDetails createSwapchain(const VkPhysicalDevice physicalDevice, const VkDevice device,
+                                 const VkSurfaceKHR surface,
+                                 const QueueFamilyContext queueFamilyContext, GLFWwindow* window) {
 
     SwapchainDetails details{};
 
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
 
-    std::vector<VkSurfaceFormatKHR> surfaceFormat(formatCount);
+    std::vector<VkSurfaceFormatKHR> surfaceFormatArray(formatCount);
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount,
-                                         surfaceFormat.data());
+                                         surfaceFormatArray.data());
 
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
 
     details.extent = chooseSwapchainExtent(surfaceCapabilities, window);
-    details.imageFormat = vulkan_helpers::chooseFormat(surfaceFormat).format;
+    details.imageFormat = chooseSwapchainFormat(surfaceFormatArray);
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;

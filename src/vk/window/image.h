@@ -4,8 +4,8 @@
 
 struct DepthImage {
     VkImage image;
+    VkFormat format;
     VkDeviceMemory memory;
 };
 
-DepthImage createImage(const VkPhysicalDevice& physicalDevice, const VkDevice& device,
-                       const VkExtent2D& extent);
+DepthImage createImage(VkPhysicalDevice physicalDevice, VkDevice device, VkExtent2D extent);

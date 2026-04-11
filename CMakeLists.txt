@@ -25,8 +25,6 @@ find_package(glfw3 REQUIRED)
 set(source src/main.cpp
         src/glfw/initGlfw.cpp
 
-        src/vk/utils/vulkan_helpers.cpp
-
         src/vk/core/instance.cpp
         src/vk/core/physical_device.cpp
         src/vk/core/virtual_device_queue.cpp
@@ -34,8 +32,10 @@ set(source src/main.cpp
         src/vk/core/vk_core.cpp
 
         src/vk/window/swapchain.cpp
-        src/vk/window/imageView.cpp
-        src/vk/window/image.cpp)
+        src/vk/window/imageViews.cpp
+        src/vk/window/image.cpp
+        src/vk/window/vk_window.cpp
+    )
 
 add_executable(jure ${source})
 target_include_directories(jure PRIVATE src)

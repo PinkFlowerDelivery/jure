@@ -4,7 +4,8 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-DeviceResult createVirtualDevice(VkPhysicalDevice physicalDevice) {
+VkDevice createVirtualDevice(VkPhysicalDevice physicalDevice,
+                             QueueFamilyContext queueFamilyContext) {
 
     std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     float queuePriority = 1.0f;

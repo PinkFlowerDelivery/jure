@@ -1,11 +1,7 @@
 #pragma once
 
+#include "vk/core/physical_device.h"
 #include <vulkan/vulkan_core.h>
 
-struct DeviceResult {
-    VkDevice device;
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
-};
-
-DeviceResult createVirtualDevice(VkPhysicalDevice physicalDevice);
+VkDevice createVirtualDevice(VkPhysicalDevice physicalDevice,
+                             QueueFamilyContext queueFamilyContext);
