@@ -1,6 +1,5 @@
 #pragma once
 
-#include "fmt/base.h"
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -12,7 +11,7 @@ class ArcBallCamera {
     float distance = 5.0f;
     float yaw = 45.0f;
     float pitch = 0.0f;
-    float sensivity = 0.5f;
+    float sensivity = 10.0f;
 
     [[nodiscard]] glm::vec3 getCameraPosition() const {
         glm::vec3 position;
@@ -42,7 +41,6 @@ class ArcBallCamera {
             return;
         }
         yaw += sensivity * x;
-        fmt::println("Yaw: {}", yaw);
     }
 
     void addPitch(double y) {
@@ -52,6 +50,5 @@ class ArcBallCamera {
         }
 
         pitch += sensivity * y;
-        fmt::println("Pitch: {}", pitch);
     }
 };

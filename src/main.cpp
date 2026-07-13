@@ -1,5 +1,4 @@
 #include "camera.h"
-#include "fmt/base.h"
 #include "vk/resources/uniform_buffer.h"
 #include <vector>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -71,7 +70,6 @@ int main() {
 
             oldX = posX;
             oldY = posY;
-            fmt::println("Curs x: {} ||| y: {}", posX, posY);
         }
         rendering.drawFrame(core.getDevice(), vkWindow, vertexBuffer, indexBuffer, uniformBuffer,
                             camera);
