@@ -16,9 +16,11 @@
         pkgs.mkShell {
 
           nativeBuildInputs = with pkgs; [
+            cmake
             vulkan-tools
             glslang
             pkg-config
+            llvm
           ];
 
           buildInputs = with pkgs; [
@@ -26,6 +28,7 @@
             vulkan-loader
             vulkan-validation-layers
             glfw
+            glm
           ];
 
           shellHook = ''

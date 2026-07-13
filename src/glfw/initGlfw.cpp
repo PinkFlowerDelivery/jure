@@ -20,5 +20,9 @@ GLFWwindow* createWindow(int32_t width, int32_t height, const char* title) {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* window = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
+    if (!window) {
+        throw std::runtime_error("Failed to create GLFW window");
+    }
+
     return window;
 };

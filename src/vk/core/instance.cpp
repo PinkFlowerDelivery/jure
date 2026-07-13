@@ -1,9 +1,9 @@
 #include "instance.h"
 #include <GLFW/glfw3.h>
 #include <cstdint>
-#include <cstring>
 #include <fmt/base.h>
 #include <stdexcept>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -20,7 +20,7 @@ bool isValidationLayerSupport() {
 
     for (const char* layer : validationLayers) {
         for (const auto& layerProps : availableLayers) {
-            if (strcmp(layer, layerProps.layerName) == 0) {
+            if (std::string_view(layer) == layerProps.layerName) {
                 return true;
             }
         }
@@ -28,31 +28,32 @@ bool isValidationLayerSupport() {
     return false;
 }
 
-VkInstance createInstance() {
+VkInstance jure::vk::core::createInstance() {
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "jure";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_0;
-
-    if (!isValidationLayerSupport()) {
-        fmt::println("Validation layers unsupported");
-    };
+    appInfo.apiVersion = VK_API_VERSION_1_3;
 
     uint32_t glfwExtCount = 0;
     const char** glfwExt = glfwGetRequiredInstanceExtensions(&glfwExtCount);
 
     VkInstanceCreateInfo instanceCreateInfo{};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instanceCreateInfo.enabledLayerCount = validationLayers.size();
-    instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
     instanceCreateInfo.pApplicationInfo = &appInfo;
     instanceCreateInfo.ppEnabledExtensionNames = glfwExt;
     instanceCreateInfo.enabledExtensionCount = glfwExtCount;
 
+    if (isValidationLayerSupport()) {
+        instanceCreateInfo.enabledLayerCount = validationLayers.size();
+        instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+    } else {
+        fmt::println("Validation layers unsupported");
+    }
+
     VkInstance instance;
     if (vkCreateInstance(&instanceCreateInfo, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create instance.");
+        throw std::runtime_error("Failed to create instance");
     }
 
     return instance;

@@ -6,18 +6,21 @@
 #include <fmt/core.h>
 #include <vulkan/vulkan_core.h>
 
-VulkanCore::VulkanCore(GLFWwindow* window) {
-    instance_ = createInstance();
-    surface_ = createSurface(instance_, window);
-    physicalDevice_ = pickPhysicalDevice(instance_, surface_);
-    device_ = createVirtualDevice(physicalDevice_.device, physicalDevice_.queueFamilyContext);
+namespace jvk = jure::vk;
 
-    VkPhysicalDeviceProperties deviceProperties;
-    vkGetPhysicalDeviceProperties(physicalDevice_.device, &deviceProperties);
-    fmt::println("Selected gpu: {}", deviceProperties.deviceName);
+jure::vk::core::VulkanCore::VulkanCore(GLFWwindow* window) {
+    instance_ = jvk::core::createInstance();
+    surface_ = jvk::core::createSurface(instance_, window);
+
+    auto [physicalDevice, queueContext] = jure::vk::core::pickPhysicalDevice(instance_, surface_);
+
+    physicalDevice_ = physicalDevice;
+    queueFamilyContext_ = queueContext;
+
+    device_ = jure::vk::core::createVirtualDevice(physicalDevice_, queueFamilyContext_);
 }
 
-VulkanCore::~VulkanCore() {
+jure::vk::core::VulkanCore::~VulkanCore() {
     vkDestroyDevice(device_, nullptr);
     vkDestroySurfaceKHR(instance_, surface_, nullptr);
     vkDestroyInstance(instance_, nullptr);

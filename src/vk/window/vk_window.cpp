@@ -1,30 +1,40 @@
 #include "vk_window.h"
 #include "vk/window/image.h"
-#include "vk/window/imageViews.h"
+#include "vk/window/image_views.h"
 #include "vk/window/swapchain.h"
 #include <vulkan/vulkan_core.h>
 
-VulkanWindow::VulkanWindow(VulkanCore& core, GLFWwindow* window) {
+namespace jvk = jure::vk;
+
+jvk::window::VulkanWindow::VulkanWindow(jvk::core::VulkanCore& core, GLFWwindow* window) {
     device_ = core.getDevice();
 
-    swapchain_ =
-        createSwapchain(core.getPhysicalDevice().device, core.getDevice(), core.getSurface(),
-                        core.getPhysicalDevice().queueFamilyContext, window);
+    auto [swapchain, swapchainDetails] =
+        createSwapchain(core.getPhysicalDevice(), core.getDevice(), core.getSurface(),
+                        core.getQueueFamilyContext(), window);
 
-    depthImage_ = createImage(core.getPhysicalDevice().device, core.getDevice(), swapchain_.extent);
-    imageViews_ = createImageViews(core.getDevice(), swapchain_.swapchain, depthImage_,
-                                   swapchain_.imageFormat);
+    swapchain_ = swapchain;
+    swapchainDetails_ = swapchainDetails;
+
+    depthImageContext_ =
+        createImage(core.getPhysicalDevice(), core.getDevice(), swapchainDetails_.extent);
+
+    auto [imageViews, depthImageView] = createImageViews(
+        core.getDevice(), swapchain_, depthImageContext_, swapchainDetails_.imageFormat);
+
+    imageViews_ = imageViews;
+    depthImageView_ = depthImageView;
 }
 
-VulkanWindow::~VulkanWindow() {
-    vkDestroyImageView(device_, imageViews_.depthImageView, nullptr);
+jvk::window::VulkanWindow::~VulkanWindow() {
+    vkDestroyImageView(device_, depthImageView_, nullptr);
 
-    for (VkImageView imageView : imageViews_.imageViews) {
+    for (VkImageView imageView : imageViews_) {
         vkDestroyImageView(device_, imageView, nullptr);
     }
 
-    vkDestroyImage(device_, depthImage_.image, nullptr);
-    vkFreeMemory(device_, depthImage_.memory, nullptr);
+    vkDestroyImage(device_, depthImageContext_.image, nullptr);
+    vkFreeMemory(device_, depthImageContext_.memory, nullptr);
 
-    vkDestroySwapchainKHR(device_, swapchain_.swapchain, nullptr);
+    vkDestroySwapchainKHR(device_, swapchain_, nullptr);
 }

@@ -1,12 +1,16 @@
-#include "imageViews.h"
+#include "image_views.h"
 #include "vk/window/image.h"
 #include <stdexcept>
+#include <utility>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-ImageView createImageViews(VkDevice device, VkSwapchainKHR swapchain, DepthImage depthImage,
-                           VkFormat colorFormat) {
-    ImageView view;
+std::pair<std::vector<VkImageView>, VkImageView>
+jure::vk::window::createImageViews(VkDevice device, VkSwapchainKHR swapchain,
+                                   jure::vk::window::DepthImageContext depthImageContext,
+                                   VkFormat colorFormat) {
+    std::vector<VkImageView> imageViews;
+    VkImageView depthImageView;
 
     uint32_t imageCount;
     vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
@@ -14,7 +18,7 @@ ImageView createImageViews(VkDevice device, VkSwapchainKHR swapchain, DepthImage
     std::vector<VkImage> swapchainImages(imageCount);
     vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data());
 
-    view.imageViews.resize(imageCount);
+    imageViews.resize(imageCount);
 
     for (size_t i = 0; i < imageCount; i++) {
         VkImage image = swapchainImages[i];
@@ -36,18 +40,17 @@ ImageView createImageViews(VkDevice device, VkSwapchainKHR swapchain, DepthImage
         createInfoColor.subresourceRange.baseArrayLayer = 0;
         createInfoColor.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(device, &createInfoColor, nullptr, &view.imageViews[i]) !=
-            VK_SUCCESS) {
+        if (vkCreateImageView(device, &createInfoColor, nullptr, &imageViews[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create image view");
         }
     }
 
     VkImageViewCreateInfo createInfoDepth{};
     createInfoDepth.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    createInfoDepth.image = depthImage.image;
+    createInfoDepth.image = depthImageContext.image;
     createInfoDepth.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
-    createInfoDepth.format = depthImage.format;
+    createInfoDepth.format = depthImageContext.format;
 
     createInfoDepth.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfoDepth.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -60,9 +63,9 @@ ImageView createImageViews(VkDevice device, VkSwapchainKHR swapchain, DepthImage
     createInfoDepth.subresourceRange.baseArrayLayer = 0;
     createInfoDepth.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(device, &createInfoDepth, nullptr, &view.depthImageView) != VK_SUCCESS) {
+    if (vkCreateImageView(device, &createInfoDepth, nullptr, &depthImageView) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create depth image view");
     }
 
-    return view;
+    return {imageViews, depthImageView};
 }

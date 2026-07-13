@@ -1,4 +1,5 @@
 #include "swapchain.h"
+#include "fmt/base.h"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cstdint>
@@ -18,10 +19,12 @@ VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR capabilities, GL
 
     VkExtent2D actualExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
 
-    actualExtent.width = std::clamp(actualExtent.width, capabilities.maxImageExtent.width,
-                                    capabilities.minImageExtent.width);
-    actualExtent.height = std::clamp(actualExtent.height, capabilities.maxImageExtent.height,
-                                     capabilities.minImageExtent.height);
+    actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width,
+                                    capabilities.maxImageExtent.width);
+    actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height,
+                                     capabilities.maxImageExtent.height);
+
+    fmt::println("Swapchain extent: w:{} h:{}", actualExtent.width, actualExtent.height);
 
     return actualExtent;
 }
@@ -36,11 +39,11 @@ VkFormat chooseSwapchainFormat(const std::vector<VkSurfaceFormatKHR>& availableF
     return availableFormats[0].format;
 }
 
-SwapchainDetails createSwapchain(const VkPhysicalDevice physicalDevice, const VkDevice device,
-                                 const VkSurfaceKHR surface,
-                                 const QueueFamilyContext queueFamilyContext, GLFWwindow* window) {
+std::pair<VkSwapchainKHR, jure::vk::window::SwapchainDetails> jure::vk::window::createSwapchain(
+    VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface,
+    jure::vk::core::QueueFamilyContext queueFamilyContext, GLFWwindow* window) {
 
-    SwapchainDetails details{};
+    jure::vk::window::SwapchainDetails details{};
 
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
@@ -82,8 +85,19 @@ SwapchainDetails createSwapchain(const VkPhysicalDevice physicalDevice, const Vk
         createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
     }
 
-    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &details.swapchain) != VK_SUCCESS) {
+    VkSwapchainKHR swapchain;
+
+    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
     };
-    return details;
+
+    uint32_t imageCount;
+    vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
+
+    std::vector<VkImage> swapchainImages(imageCount);
+    vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data());
+
+    details.images = swapchainImages;
+
+    return {swapchain, details};
 }

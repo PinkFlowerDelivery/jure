@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <vulkan/vulkan_core.h>
 
-VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window) {
+VkSurfaceKHR jure::vk::core::createSurface(VkInstance instance, GLFWwindow* window) {
 
     VkSurfaceKHR surface;
 

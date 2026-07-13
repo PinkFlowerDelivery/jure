@@ -2,10 +2,13 @@
 
 #include <vulkan/vulkan_core.h>
 
-struct DepthImage {
+namespace jure::vk::window {
+
+struct DepthImageContext {
     VkImage image;
     VkFormat format;
     VkDeviceMemory memory;
 };
 
-DepthImage createImage(VkPhysicalDevice physicalDevice, VkDevice device, VkExtent2D extent);
+DepthImageContext createImage(VkPhysicalDevice physicalDevice, VkDevice device, VkExtent2D extent);
+} // namespace jure::vk::window

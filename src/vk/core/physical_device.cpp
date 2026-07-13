@@ -1,21 +1,24 @@
 #include "physical_device.h"
+#include "fmt/base.h"
 #include <GLFW/glfw3.h>
 #include <cstdint>
+#include <stdexcept>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-int32_t rateDevice(const VkPhysicalDevice& physicalDevice) {
+int32_t rateDevice(VkPhysicalDevice physicalDevice) {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(physicalDevice, &props);
 
     int32_t score = 0;
 
     if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-        score += 1000;
+        score += 100;
     }
 
     if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
-        score += 100;
+        score += 10;
     }
 
     score += props.limits.maxImageDimension2D;
@@ -24,7 +27,45 @@ int32_t rateDevice(const VkPhysicalDevice& physicalDevice) {
     return score;
 }
 
-QueueFamilyContext findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+bool isDeviceSuitable(VkPhysicalDevice physicalDevice,
+                      jure::vk::core::QueueFamilyContext queueFamilyContext) {
+
+    VkPhysicalDeviceFeatures pdFeatures;
+    vkGetPhysicalDeviceFeatures(physicalDevice, &pdFeatures);
+
+    uint32_t extensionCount;
+    vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
+
+    std::vector<VkExtensionProperties> extensionProps;
+    vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount,
+                                         extensionProps.data());
+
+    bool isExtSupported = false;
+    for (const auto& extension : extensionProps) {
+        if (std::string_view(extension.extensionName) == VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME) {
+            isExtSupported = true;
+            break;
+        }
+    }
+
+    if (isExtSupported) {
+        return false;
+    }
+
+    if (!pdFeatures.geometryShader) {
+        return false;
+    }
+
+    if (!queueFamilyContext.graphicsFamily.has_value() &&
+        !queueFamilyContext.presentFamily.has_value()) {
+        return false;
+    }
+
+    return true;
+}
+
+jure::vk::core::QueueFamilyContext findQueueFamilies(VkPhysicalDevice physicalDevice,
+                                                     VkSurfaceKHR surface) {
     uint32_t queueFamiliesCount;
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamiliesCount, nullptr);
 
@@ -32,7 +73,7 @@ QueueFamilyContext findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceK
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamiliesCount,
                                              familyProps.data());
 
-    QueueFamilyContext context;
+    jure::vk::core::QueueFamilyContext context;
 
     uint32_t i = 0;
     for (auto& props : familyProps) {
@@ -52,32 +93,8 @@ QueueFamilyContext findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceK
     return context;
 }
 
-bool isDeviceSuitable(const VkPhysicalDevice& physicalDevice, const VkSurfaceKHR& surface,
-                      QueueFamilyContext queueFamilyContext) {
-    VkPhysicalDeviceFeatures pdFeatures;
-    vkGetPhysicalDeviceFeatures(physicalDevice, &pdFeatures);
-
-    VkPhysicalDeviceProperties pdProps;
-    vkGetPhysicalDeviceProperties(physicalDevice, &pdProps);
-
-    uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
-
-    if (!pdFeatures.geometryShader) {
-        return false;
-    }
-
-    if (!queueFamilyContext.graphicsFamily.has_value() &&
-        !queueFamilyContext.presentFamily.has_value()) {
-        return false;
-    }
-
-    return true;
-}
-
-SelectedPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface) {
-
-    SelectedPhysicalDevice result{};
+std::pair<VkPhysicalDevice, jure::vk::core::QueueFamilyContext>
+jure::vk::core::pickPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface) {
 
     uint32_t physicalDeviceCount;
     vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr);
@@ -86,14 +103,13 @@ SelectedPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSu
     vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices.data());
 
     VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
+    jure::vk::core::QueueFamilyContext bestQueueFamilies;
     int32_t bestScore = 0;
 
-    QueueFamilyContext queueFamilyContext;
-
     for (const auto& device : physicalDevices) {
-        queueFamilyContext = findQueueFamilies(device, surface);
+        auto families = findQueueFamilies(device, surface);
 
-        if (!isDeviceSuitable(device, surface, queueFamilyContext)) {
+        if (!isDeviceSuitable(device, families)) {
             continue;
         }
 
@@ -102,11 +118,24 @@ SelectedPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSu
         if (score > bestScore) {
             bestScore = score;
             bestDevice = device;
+            bestQueueFamilies = families;
         }
     }
 
-    result.device = bestDevice;
-    result.queueFamilyContext = queueFamilyContext;
+    VkPhysicalDevice physicalDevice = bestDevice;
+    QueueFamilyContext queueFamilyContext = bestQueueFamilies;
 
-    return result;
+    if (physicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("Failed to find a suitable GPU!");
+    }
+
+    fmt::println("Queue families: \n  Graphic: {}\n  Present: {}\n  Is unified: {}",
+                 bestQueueFamilies.graphicsFamily.has_value(),
+                 bestQueueFamilies.presentFamily.has_value(), bestQueueFamilies.isUnifiedQueue());
+
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+    fmt::println("Selected gpu: {}", deviceProperties.deviceName);
+
+    return {physicalDevice, queueFamilyContext};
 };

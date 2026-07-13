@@ -1,7 +1,10 @@
 #pragma once
 
 #include <optional>
+#include <utility>
 #include <vulkan/vulkan_core.h>
+
+namespace jure::vk::core {
 
 struct QueueFamilyContext {
     std::optional<uint32_t> graphicsFamily;
@@ -13,9 +16,6 @@ struct QueueFamilyContext {
     }
 };
 
-struct SelectedPhysicalDevice {
-    VkPhysicalDevice device = VK_NULL_HANDLE;
-    QueueFamilyContext queueFamilyContext;
-};
-
-SelectedPhysicalDevice pickPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface);
+std::pair<VkPhysicalDevice, QueueFamilyContext> pickPhysicalDevice(const VkInstance& instance,
+                                                                   const VkSurfaceKHR& surface);
+} // namespace jure::vk::core
