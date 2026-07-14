@@ -1,6 +1,7 @@
 #pragma once
 
 #include "camera.h"
+#include "vk/renderer/descriptorManager.h"
 #include "vk/resources/index_buffer.h"
 #include "vk/resources/uniform_buffer.h"
 #include "vk/resources/vertex_buffer.h"
@@ -16,9 +17,7 @@ class Rendering {
     VkPipeline pipeline_;
     VkPipelineLayout pipelineLayout_;
 
-    VkDescriptorSetLayout descriptorSetLayout_;
-    VkDescriptorPool descriptorPool_;
-    VkDescriptorSet descriptorSet_;
+    DescriptorManager dm_;
 
     VkCommandPool commandPool_;
     VkCommandBuffer commandBuffer_;
@@ -36,7 +35,7 @@ class Rendering {
     void recordCommandBuffer(uint32_t imageIndex, resources::VertexBuffer& vBuffer,
                              window::VulkanWindow& vkWindow, resources::IndexBuffer& indexBuffer);
 
-    void createDescriptorPool();
+    VkPipelineLayout createPipelineLayout();
 
   public:
     Rendering(VkDevice device, window::VulkanWindow& vkWindow, uint32_t graphicFamily,

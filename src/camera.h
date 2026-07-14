@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -9,9 +10,9 @@
 class ArcBallCamera {
     glm::vec3 modelPosition = {0.0f, 0.0f, 0.0f};
     float distance = 5.0f;
-    float yaw = 45.0f;
+    float yaw = 0.0f;
     float pitch = 0.0f;
-    float sensivity = 10.0f;
+    float sensivity = 0.5f;
 
     [[nodiscard]] glm::vec3 getCameraPosition() const {
         glm::vec3 position;
@@ -36,19 +37,12 @@ class ArcBallCamera {
     }
 
     void addYaw(double x) {
-        if (yaw >= 90.0f) {
-            yaw = 89.0f;
-            return;
-        }
         yaw += sensivity * x;
     }
 
     void addPitch(double y) {
-        if (pitch >= 90.0f) {
-            pitch = 89.0f;
-            return;
-        }
 
         pitch += sensivity * y;
+        pitch = std::clamp(pitch, -89.9f, 89.9f);
     }
 };

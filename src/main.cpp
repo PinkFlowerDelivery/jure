@@ -1,13 +1,10 @@
 #include "camera.h"
-#include "vk/resources/uniform_buffer.h"
-#include <vector>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
 #include "glfw/initGlfw.h"
 #include "tiny_gltf.h"
 #include "vk/core/vk_core.h"
 #include "vk/renderer/rendering.h"
 #include "vk/resources/index_buffer.h"
+#include "vk/resources/uniform_buffer.h"
 #include "vk/resources/vertex_buffer.h"
 #include "vk/window/vk_window.h"
 #include <GLFW/glfw3.h>
@@ -16,6 +13,9 @@
 #include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <vector>
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 using namespace jure::vk;
 

@@ -1,8 +1,9 @@
 #include "rendering.h"
 #include "camera.h"
 #include "vk/renderer/commands.h"
+#include "vk/renderer/descriptorManager.h"
 #include "vk/renderer/memory_barriers.h"
-#include "vk/renderer/pipeline.h"
+#include "vk/renderer/pipeline_builder.h"
 #include "vk/resources/uniform_buffer.h"
 #include "vk/resources/vertex_buffer.h"
 #include "vk/window/swapchain.h"
@@ -15,66 +16,41 @@
 
 namespace jvk = jure::vk;
 
-void jvk::renderer::Rendering::createDescriptorPool() {
-    VkDescriptorPoolSize uboPoolSize{};
-    uboPoolSize.descriptorCount = 1;
+VkPipelineLayout jvk::renderer::Rendering::createPipelineLayout() {
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.pSetLayouts = &dm_.getDescriptorSetLayout();
+    pipelineLayoutInfo.setLayoutCount = 1;
 
-    uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    VkDescriptorPoolCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    createInfo.pPoolSizes = &uboPoolSize;
-    createInfo.poolSizeCount = 1;
-    createInfo.maxSets = 1;
+    VkPipelineLayout layout;
 
-    if (vkCreateDescriptorPool(device_, &createInfo, nullptr, &descriptorPool_) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create descriptor pool");
+    if (vkCreatePipelineLayout(device_, &pipelineLayoutInfo, nullptr, &layout) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create pipeline layout");
     }
+
+    return layout;
 };
 
 jvk::renderer::Rendering::Rendering(VkDevice device, jvk::window::VulkanWindow& vkWindow,
                                     uint32_t graphicFamily, uint32_t presentFamily,
-                                    resources::UniformBuffer& uniformBuffer) {
+                                    resources::UniformBuffer& uniformBuffer)
+    : device_(device) {
 
-    device_ = device;
+    dm_.init(device_);
+    dm_.updateDescriptorSets(uniformBuffer.getBuffer(), sizeof(resources::ArcBallCameraUniform));
 
     vkGetDeviceQueue(device, graphicFamily, 0, &graphicQueue_);
 
     vkGetDeviceQueue(device, presentFamily, 0, &presentQueue_);
 
-    auto [pipeline, pipelineLayout, descriptorLayout] = createGraphicsPipeline(device, vkWindow);
+    pipelineLayout_ = createPipelineLayout();
 
-    createDescriptorPool();
+    pipeline_ = PipelineBuilder(device)
+                    .setPipelineLayout(pipelineLayout_)
+                    .setRenderingFormats(vkWindow.getImageFormat(), vkWindow.getDepthFormat())
+                    .useDefaultConfiguration()
+                    .build();
 
-    VkDescriptorSetAllocateInfo allocateInfo{};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocateInfo.descriptorPool = descriptorPool_;
-    allocateInfo.descriptorSetCount = 1;
-    allocateInfo.pSetLayouts = &descriptorLayout;
-
-    if (vkAllocateDescriptorSets(device, &allocateInfo, &descriptorSet_) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate descriptor set.");
-    }
-
-    VkDescriptorBufferInfo bufferInfo{};
-    bufferInfo.buffer = uniformBuffer.getBuffer();
-    bufferInfo.offset = 0;
-    bufferInfo.range = sizeof(resources::ArcBallCameraUniform);
-
-    VkWriteDescriptorSet writeDescriptorSet{};
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.descriptorCount = 1;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.dstBinding = 0;
-    writeDescriptorSet.dstSet = descriptorSet_;
-    writeDescriptorSet.dstArrayElement = 0;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &bufferInfo;
-
-    vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
-
-    pipeline_ = pipeline;
-    pipelineLayout_ = pipelineLayout;
-    descriptorSetLayout_ = descriptorLayout;
     commandPool_ = createCommandPool(device, presentFamily);
     commandBuffer_ = createCommandBuffer(device, commandPool_);
     createSyncObjects(device);
@@ -90,6 +66,7 @@ jvk::renderer::Rendering::~Rendering() {
     }
 
     vkDestroyCommandPool(device_, commandPool_, nullptr);
+    vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
     vkDestroyPipeline(device_, pipeline_, nullptr);
 };
 
@@ -210,7 +187,7 @@ void jvk::renderer::Rendering::recordCommandBuffer(uint32_t imageIndex,
 
     vkCmdBindVertexBuffers(commandBuffer_, 0, 1, &buffer, offsets.data());
     vkCmdBindDescriptorSets(commandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1,
-                            &descriptorSet_, 0, nullptr);
+                            &dm_.getDescriptorSet(), 0, nullptr);
     vkCmdBindIndexBuffer(commandBuffer_, indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(commandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 

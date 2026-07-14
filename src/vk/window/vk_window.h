@@ -41,6 +41,9 @@ class VulkanWindow {
     [[nodiscard]] VkFormat getDepthFormat() const {
         return depthImageContext_.format;
     }
+    [[nodiscard]] VkFormat getImageFormat() const {
+        return swapchainDetails_.imageFormat;
+    }
     VulkanWindow(jure::vk::core::VulkanCore& core, GLFWwindow* window);
     ~VulkanWindow();
 };

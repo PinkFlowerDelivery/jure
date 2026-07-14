@@ -49,11 +49,11 @@ set(source src/main.cpp
         src/vk/resources/index_buffer.cpp
         src/vk/resources/uniform_buffer.cpp
 
-        src/vk/renderer/pipeline.cpp
-        src/vk/renderer/pipeline_states.cpp
+        src/vk/renderer/pipeline_builder.cpp
         src/vk/renderer/rendering.cpp
         src/vk/renderer/commands.cpp
         src/vk/renderer/memory_barriers.cpp
+        src/vk/renderer/descriptorManager.cpp
 
         src/vk/utils/memory_utils.cpp
     )
