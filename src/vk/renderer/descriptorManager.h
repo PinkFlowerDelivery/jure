@@ -1,5 +1,7 @@
 #pragma once
 
+#include "vk/resources/uniform_buffer.h"
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 namespace jure::vk::renderer {
@@ -22,7 +24,8 @@ class DescriptorManager {
     DescriptorManager(const DescriptorManager&) = delete;
     DescriptorManager& operator=(const DescriptorManager&) = delete;
 
-    void updateDescriptorSets(VkBuffer buffer, VkDeviceSize range);
+    void updateDescriptorSets(std::vector<resources::UniformBuffer>& unifromBuffers,
+                              VkDeviceSize range);
 
     [[nodiscard]] VkDescriptorSetLayout& getDescriptorSetLayout() {
         return descriptorSetLayout_;

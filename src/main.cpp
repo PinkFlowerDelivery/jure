@@ -1,19 +1,17 @@
 #include "camera.h"
+#include "fmt/base.h"
 #include "glfw/initGlfw.h"
 #include "tiny_gltf.h"
 #include "vk/core/vk_core.h"
 #include "vk/renderer/rendering.h"
 #include "vk/resources/index_buffer.h"
-#include "vk/resources/uniform_buffer.h"
 #include "vk/resources/vertex_buffer.h"
 #include "vk/window/vk_window.h"
 #include <GLFW/glfw3.h>
-#include <cstdint>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <vector>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
@@ -32,6 +30,8 @@ int main() {
 
     GLFWwindow* window = createWindow(640, 480, "vk");
 
+    fmt::println("V: {}; I: {}", vertices.size(), indices.size());
+
     core::VulkanCore core(window);
     window::VulkanWindow vkWindow(core, window);
 
@@ -41,14 +41,12 @@ int main() {
     vertexBuffer.uploadVerticies(core.getDevice(), vertices);
 
     size_t indexBufferSize = indices.size() * sizeof(indices[0]);
-    resources::IndexBuffer indexBuffer(core.getPhysicalDevice(), core.getDevice(), indexBufferSize);
+
+    resources::IndexBuffer indexBuffer(core.getPhysicalDevice(), core.getDevice(),
+                                       indexBufferSize + 1);
     indexBuffer.uploadIndices(core.getDevice(), indices);
-
-    resources::UniformBuffer uniformBuffer(core.getPhysicalDevice(), core.getDevice(),
-                                           sizeof(resources::ArcBallCameraUniform));
-
-    renderer::Rendering rendering(core.getDevice(), vkWindow, core.getGraphicsFamilyIndex(),
-                                  core.getPresentFamilyIndex(), uniformBuffer);
+    renderer::Rendering rendering(core.getPhysicalDevice(), core.getDevice(), vkWindow,
+                                  core.getGraphicsFamilyIndex(), core.getPresentFamilyIndex());
 
     ArcBallCamera camera{};
 
@@ -71,7 +69,6 @@ int main() {
             oldX = posX;
             oldY = posY;
         }
-        rendering.drawFrame(core.getDevice(), vkWindow, vertexBuffer, indexBuffer, uniformBuffer,
-                            camera);
+        rendering.drawFrame(core.getDevice(), vkWindow, vertexBuffer, indexBuffer, camera);
     }
 }

@@ -11,6 +11,7 @@
 #include <array>
 #include <cstdint>
 #include <glm/ext/matrix_clip_space.hpp>
+#include <glm/fwd.hpp>
 #include <stdexcept>
 #include <vulkan/vulkan_core.h>
 
@@ -31,13 +32,24 @@ VkPipelineLayout jvk::renderer::Rendering::createPipelineLayout() {
     return layout;
 };
 
-jvk::renderer::Rendering::Rendering(VkDevice device, jvk::window::VulkanWindow& vkWindow,
-                                    uint32_t graphicFamily, uint32_t presentFamily,
-                                    resources::UniformBuffer& uniformBuffer)
+void jvk::renderer::Rendering::initUniformBuffers(VkPhysicalDevice pdevice, VkDevice device) {
+    for (int32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
+        resources::UniformBuffer ubo(pdevice, device, sizeof(resources::ArcBallCameraUniform));
+        uniformBuffers_.push_back(std::move(ubo));
+    }
+};
+
+jvk::renderer::Rendering::Rendering(VkPhysicalDevice pdevice, VkDevice device,
+                                    jvk::window::VulkanWindow& vkWindow, uint32_t graphicFamily,
+                                    uint32_t presentFamily)
     : device_(device) {
 
+    initUniformBuffers(pdevice, device);
+
+    createSyncObjects(device);
+
     dm_.init(device_);
-    dm_.updateDescriptorSets(uniformBuffer.getBuffer(), sizeof(resources::ArcBallCameraUniform));
+    dm_.updateDescriptorSets(uniformBuffers_, sizeof(resources::ArcBallCameraUniform));
 
     vkGetDeviceQueue(device, graphicFamily, 0, &graphicQueue_);
 
@@ -52,16 +64,15 @@ jvk::renderer::Rendering::Rendering(VkDevice device, jvk::window::VulkanWindow& 
                     .build();
 
     commandPool_ = createCommandPool(device, presentFamily);
-    commandBuffer_ = createCommandBuffer(device, commandPool_);
-    createSyncObjects(device);
+    commandBuffers_ = createCommandBuffer(device, commandPool_);
 }
 
 jvk::renderer::Rendering::~Rendering() {
     vkDeviceWaitIdle(device_);
-    vkDestroyFence(device_, inFlightFences_, nullptr);
-    vkDestroySemaphore(device_, imageAvailableSemaphores_, nullptr);
 
     for (int32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
+        vkDestroyFence(device_, inFlightFences_[i], nullptr);
+        vkDestroySemaphore(device_, imageAvailableSemaphores_[i], nullptr);
         vkDestroySemaphore(device_, renderFinishedSemaphores_[i], nullptr);
     }
 
@@ -73,50 +84,52 @@ jvk::renderer::Rendering::~Rendering() {
 void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWindow& vkWindow,
                                          jvk::resources::VertexBuffer& vBuffer,
                                          jvk::resources::IndexBuffer& indexBuffer,
-                                         resources::UniformBuffer& uniformBuffer,
                                          ArcBallCamera camera) {
-
-    vkWaitForFences(device, 1, &inFlightFences_, VK_TRUE, UINT64_MAX);
-    vkResetFences(device, 1, &inFlightFences_);
+    vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
+    vkResetFences(device_, 1, &inFlightFences_[currentFrame_]);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(device, vkWindow.getSwapchain(), UINT64_MAX, imageAvailableSemaphores_,
-                          VK_NULL_HANDLE, &imageIndex);
+    vkAcquireNextImageKHR(device, vkWindow.getSwapchain(), UINT64_MAX,
+                          imageAvailableSemaphores_[currentFrame_], VK_NULL_HANDLE, &imageIndex);
 
-    vkResetCommandBuffer(commandBuffer_, 0);
+    vkResetCommandBuffer(commandBuffers_[currentFrame_], 0);
 
-    recordCommandBuffer(imageIndex, vBuffer, vkWindow, indexBuffer);
+    recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, vBuffer, vkWindow, indexBuffer);
 
-    auto viewMatrix = camera.getViewMatrix();
-    auto projMatrix = camera.getProjectionMatrix(vkWindow.getSwapchainDetails().extent.width,
-                                                 vkWindow.getSwapchainDetails().extent.height);
+    auto& currentUniformBuffer = uniformBuffers_[currentFrame_];
 
-    uniformBuffer.upload(device_, viewMatrix, projMatrix);
+    glm::mat4x4 viewMatrix = camera.getViewMatrix();
+    uint32_t width = vkWindow.getSwapchainDetails().extent.width;
+    uint32_t height = vkWindow.getSwapchainDetails().extent.height;
+    glm::mat4x4 projMatrix = camera.getProjectionMatrix(width, height);
+
+    currentUniformBuffer.upload(device_, viewMatrix, projMatrix);
 
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT_;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &imageAvailableSemaphores_;
+    submitInfo.pWaitSemaphores = &imageAvailableSemaphores_[currentFrame_];
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &renderFinishedSemaphores_[imageIndex];
+    submitInfo.pSignalSemaphores = &renderFinishedSemaphores_[currentFrame_];
+    submitInfo.pCommandBuffers = &commandBuffers_[currentFrame_];
     submitInfo.pWaitDstStageMask = &waitStage;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer_;
+    submitInfo.pCommandBuffers = &commandBuffers_[currentFrame_];
 
-    if (vkQueueSubmit(graphicQueue_, 1, &submitInfo, inFlightFences_) != VK_SUCCESS) {
+    if (vkQueueSubmit(graphicQueue_, 1, &submitInfo, inFlightFences_[currentFrame_]) !=
+        VK_SUCCESS) {
         throw std::runtime_error("Failed to submit");
     };
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &renderFinishedSemaphores_[imageIndex];
-
+    presentInfo.pWaitSemaphores = &renderFinishedSemaphores_[currentFrame_];
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &vkWindow.getSwapchain();
-
     presentInfo.pImageIndices = &imageIndex;
 
     vkQueuePresentKHR(presentQueue_, &presentInfo);
@@ -124,7 +137,8 @@ void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWin
     currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT_;
 }
 
-void jvk::renderer::Rendering::recordCommandBuffer(uint32_t imageIndex,
+void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentCommandBuffer,
+                                                   uint32_t imageIndex,
                                                    jvk::resources::VertexBuffer& vBuffer,
                                                    jvk::window::VulkanWindow& vkWindow,
                                                    jvk::resources::IndexBuffer& indexBuffer) {
@@ -181,20 +195,20 @@ void jvk::renderer::Rendering::recordCommandBuffer(uint32_t imageIndex,
     renderingInfo.pDepthAttachment = &depthAttachmentInfo;
     renderingInfo.pStencilAttachment = nullptr;
 
-    vkBeginCommandBuffer(commandBuffer_, &beginInfo);
+    vkBeginCommandBuffer(currentCommandBuffer, &beginInfo);
     std::array<VkDeviceSize, 1> offsets = {0};
     VkBuffer buffer = vBuffer.getBuffer();
 
-    vkCmdBindVertexBuffers(commandBuffer_, 0, 1, &buffer, offsets.data());
-    vkCmdBindDescriptorSets(commandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1,
-                            &dm_.getDescriptorSet(), 0, nullptr);
-    vkCmdBindIndexBuffer(commandBuffer_, indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindPipeline(commandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+    vkCmdBindVertexBuffers(currentCommandBuffer, 0, 1, &buffer, offsets.data());
+    vkCmdBindDescriptorSets(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
+                            0, 1, &dm_.getDescriptorSet(), 0, nullptr);
+    vkCmdBindIndexBuffer(currentCommandBuffer, indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindPipeline(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
-    vkCmdPipelineBarrier2(commandBuffer_, &colorDepInfo);
-    vkCmdPipelineBarrier2(commandBuffer_, &depthDepInfo);
+    vkCmdPipelineBarrier2(currentCommandBuffer, &colorDepInfo);
+    vkCmdPipelineBarrier2(currentCommandBuffer, &depthDepInfo);
 
-    vkCmdBeginRendering(commandBuffer_, &renderingInfo);
+    vkCmdBeginRendering(currentCommandBuffer, &renderingInfo);
 
     VkViewport viewport{};
     viewport.x = 0.0f;
@@ -204,25 +218,27 @@ void jvk::renderer::Rendering::recordCommandBuffer(uint32_t imageIndex,
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
-    vkCmdSetViewport(commandBuffer_, 0, 1, &viewport);
+    vkCmdSetViewport(currentCommandBuffer, 0, 1, &viewport);
 
     VkRect2D scissor{};
     scissor.offset = {0, 0};
     scissor.extent = vkWindow.getSwapchainDetails().extent;
-    vkCmdSetScissor(commandBuffer_, 0, 1, &scissor);
+    vkCmdSetScissor(currentCommandBuffer, 0, 1, &scissor);
 
     if (indexBuffer.getSize() > 0) {
-        vkCmdDrawIndexed(commandBuffer_, indexBuffer.getSize(), 1, 0, 0, 0);
+        vkCmdDrawIndexed(currentCommandBuffer, indexBuffer.getSize(), 1, 0, 0, 0);
     } else {
-        vkCmdDraw(commandBuffer_, vBuffer.getSize(), 1, 0, 0);
+        vkCmdDraw(currentCommandBuffer, vBuffer.getSize(), 1, 0, 0);
     }
 
-    vkCmdEndRendering(commandBuffer_);
-    vkCmdPipelineBarrier2(commandBuffer_, &presentDepInfo);
-    vkEndCommandBuffer(commandBuffer_);
+    vkCmdEndRendering(currentCommandBuffer);
+    vkCmdPipelineBarrier2(currentCommandBuffer, &presentDepInfo);
+    vkEndCommandBuffer(currentCommandBuffer);
 };
 
 void jvk::renderer::Rendering::createSyncObjects(VkDevice device) {
+    inFlightFences_.resize(MAX_FRAMES_IN_FLIGHT_);
+    imageAvailableSemaphores_.resize(MAX_FRAMES_IN_FLIGHT_);
     renderFinishedSemaphores_.resize(MAX_FRAMES_IN_FLIGHT_);
 
     VkSemaphoreCreateInfo semaphoreCreateInfo{};
@@ -233,11 +249,11 @@ void jvk::renderer::Rendering::createSyncObjects(VkDevice device) {
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     for (int32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
-        if (vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphores_) !=
-                VK_SUCCESS ||
+        if (vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr,
+                              &imageAvailableSemaphores_[i]) != VK_SUCCESS ||
             vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr,
                               &renderFinishedSemaphores_[i]) != VK_SUCCESS ||
-            vkCreateFence(device, &fenceCreateInfo, nullptr, &inFlightFences_) != VK_SUCCESS) {
+            vkCreateFence(device, &fenceCreateInfo, nullptr, &inFlightFences_[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create sync objects");
         }
     }

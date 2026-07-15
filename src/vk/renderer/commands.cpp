@@ -1,6 +1,7 @@
 #include "commands.h"
 #include <cstdint>
 #include <stdexcept>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 VkCommandPool createCommandPool(VkDevice device, uint32_t queueFamilyIndex) {
@@ -17,17 +18,18 @@ VkCommandPool createCommandPool(VkDevice device, uint32_t queueFamilyIndex) {
     return commandPool;
 };
 
-VkCommandBuffer createCommandBuffer(VkDevice device, VkCommandPool commandPool) {
+std::vector<VkCommandBuffer> createCommandBuffer(VkDevice device, VkCommandPool commandPool) {
+    uint32_t size = 3;
     VkCommandBufferAllocateInfo allocateInfo{};
     allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocateInfo.commandPool = commandPool;
     allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocateInfo.commandBufferCount = 1;
+    allocateInfo.commandBufferCount = size;
 
-    VkCommandBuffer commandBuffer;
-    if (vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer) != VK_SUCCESS) {
+    std::vector<VkCommandBuffer> commandBuffers(size);
+    if (vkAllocateCommandBuffers(device, &allocateInfo, commandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create command buffer");
     }
 
-    return commandBuffer;
+    return commandBuffers;
 };

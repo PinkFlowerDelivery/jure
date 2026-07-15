@@ -1,5 +1,6 @@
 
 #include "descriptorManager.h"
+#include "vk/resources/uniform_buffer.h"
 #include <stdexcept>
 
 namespace jvk = jure::vk;
@@ -73,22 +74,25 @@ void jvk::renderer::DescriptorManager::allocateDescriptorSets() {
     descriptorSet_ = descriptorSet;
 };
 
-void jvk::renderer::DescriptorManager::updateDescriptorSets(VkBuffer buffer, VkDeviceSize range) {
+void jvk::renderer::DescriptorManager::updateDescriptorSets(
+    std::vector<resources::UniformBuffer>& unifromBuffers, VkDeviceSize range) {
 
-    VkDescriptorBufferInfo bufferInfo{};
-    bufferInfo.buffer = buffer;
-    bufferInfo.offset = 0;
-    bufferInfo.range = range;
+    for (const auto& buffer : unifromBuffers) {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = buffer.getBuffer();
+        bufferInfo.offset = 0;
+        bufferInfo.range = range;
 
-    VkWriteDescriptorSet writeDescriptorSet{};
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.descriptorCount = 1;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.dstBinding = 0;
-    writeDescriptorSet.dstSet = descriptorSet_;
-    writeDescriptorSet.dstArrayElement = 0;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet.pBufferInfo = &bufferInfo;
+        VkWriteDescriptorSet writeDescriptorSet{};
+        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptorSet.descriptorCount = 1;
+        writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeDescriptorSet.dstBinding = 0;
+        writeDescriptorSet.dstSet = descriptorSet_;
+        writeDescriptorSet.dstArrayElement = 0;
+        writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeDescriptorSet.pBufferInfo = &bufferInfo;
 
-    vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
+        vkUpdateDescriptorSets(device_, 1, &writeDescriptorSet, 0, nullptr);
+    }
 };

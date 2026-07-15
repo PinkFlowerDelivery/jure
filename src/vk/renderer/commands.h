@@ -1,6 +1,7 @@
 #pragma once
 
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 VkCommandPool createCommandPool(VkDevice device, uint32_t queueFamilyIndex);
-VkCommandBuffer createCommandBuffer(VkDevice device, VkCommandPool commandPool);
+std::vector<VkCommandBuffer> createCommandBuffer(VkDevice device, VkCommandPool commandPool);

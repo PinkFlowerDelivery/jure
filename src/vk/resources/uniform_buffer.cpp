@@ -8,6 +8,8 @@ namespace jvk = jure::vk;
 
 jure::vk::resources::UniformBuffer::UniformBuffer(VkPhysicalDevice physicalDevice, VkDevice device,
                                                   size_t bufferSize) {
+    // We store the device here for cleanup in the destructor
+    device_ = device;
     buffer_ = jvk::resources::createBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, bufferSize);
 
     VkMemoryRequirements memRequirements;
@@ -20,9 +22,6 @@ jure::vk::resources::UniformBuffer::UniformBuffer(VkPhysicalDevice physicalDevic
     bufferMemory_ = jvk::resources::allocateMemory(device, buffer_, memoryTypeIndex);
 
     vkBindBufferMemory(device, buffer_, bufferMemory_, 0);
-
-    // We store the device here for cleanup in the destructor
-    device_ = device;
 }
 
 void jure::vk::resources::UniformBuffer::upload(VkDevice device, glm::mat4x4& view,
@@ -43,6 +42,10 @@ void jure::vk::resources::UniformBuffer::upload(VkDevice device, glm::mat4x4& vi
 };
 
 jure::vk::resources::UniformBuffer::~UniformBuffer() {
-    vkDestroyBuffer(device_, buffer_, nullptr);
-    vkFreeMemory(device_, bufferMemory_, nullptr);
+    if (buffer_ != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device_, buffer_, nullptr);
+    }
+    if (bufferMemory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, bufferMemory_, nullptr);
+    }
 }
