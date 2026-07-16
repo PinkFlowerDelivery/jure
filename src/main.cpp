@@ -42,8 +42,7 @@ int main() {
 
     size_t indexBufferSize = indices.size() * sizeof(indices[0]);
 
-    resources::IndexBuffer indexBuffer(core.getPhysicalDevice(), core.getDevice(),
-                                       indexBufferSize + 1);
+    resources::IndexBuffer indexBuffer(core.getPhysicalDevice(), core.getDevice(), indexBufferSize);
     indexBuffer.uploadIndices(core.getDevice(), indices);
     renderer::Rendering rendering(core.getPhysicalDevice(), core.getDevice(), vkWindow,
                                   core.getGraphicsFamilyIndex(), core.getPresentFamilyIndex());

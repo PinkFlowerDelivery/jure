@@ -34,7 +34,7 @@ class Rendering {
 
     std::vector<resources::UniformBuffer> uniformBuffers_;
 
-    void createSyncObjects(VkDevice device);
+    void createSyncObjects(VkDevice device, window::VulkanWindow& vkWindow);
     void recordCommandBuffer(VkCommandBuffer currentCommandBuffer, uint32_t imageIndex,
                              resources::VertexBuffer& vBuffer, window::VulkanWindow& vkWindow,
                              resources::IndexBuffer& indexBuffer);

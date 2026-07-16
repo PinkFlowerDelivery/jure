@@ -46,7 +46,7 @@ jvk::renderer::Rendering::Rendering(VkPhysicalDevice pdevice, VkDevice device,
 
     initUniformBuffers(pdevice, device);
 
-    createSyncObjects(device);
+    createSyncObjects(device, vkWindow);
 
     dm_.init(device_);
     dm_.updateDescriptorSets(uniformBuffers_, sizeof(resources::ArcBallCameraUniform));
@@ -113,7 +113,7 @@ void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWin
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = &imageAvailableSemaphores_[currentFrame_];
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &renderFinishedSemaphores_[currentFrame_];
+    submitInfo.pSignalSemaphores = &renderFinishedSemaphores_[imageIndex];
     submitInfo.pCommandBuffers = &commandBuffers_[currentFrame_];
     submitInfo.pWaitDstStageMask = &waitStage;
     submitInfo.commandBufferCount = 1;
@@ -127,7 +127,7 @@ void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWin
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &renderFinishedSemaphores_[currentFrame_];
+    presentInfo.pWaitSemaphores = &renderFinishedSemaphores_[imageIndex];
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &vkWindow.getSwapchain();
     presentInfo.pImageIndices = &imageIndex;
@@ -236,10 +236,10 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
     vkEndCommandBuffer(currentCommandBuffer);
 };
 
-void jvk::renderer::Rendering::createSyncObjects(VkDevice device) {
+void jvk::renderer::Rendering::createSyncObjects(VkDevice device, window::VulkanWindow& vkWindow) {
     inFlightFences_.resize(MAX_FRAMES_IN_FLIGHT_);
     imageAvailableSemaphores_.resize(MAX_FRAMES_IN_FLIGHT_);
-    renderFinishedSemaphores_.resize(MAX_FRAMES_IN_FLIGHT_);
+    renderFinishedSemaphores_.resize(vkWindow.getImages().size());
 
     VkSemaphoreCreateInfo semaphoreCreateInfo{};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -251,10 +251,16 @@ void jvk::renderer::Rendering::createSyncObjects(VkDevice device) {
     for (int32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
         if (vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr,
                               &imageAvailableSemaphores_[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr,
-                              &renderFinishedSemaphores_[i]) != VK_SUCCESS ||
+
             vkCreateFence(device, &fenceCreateInfo, nullptr, &inFlightFences_[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create sync objects");
+        }
+    }
+
+    for (size_t i = 0; i < vkWindow.getImages().size(); i++) {
+        if (vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr,
+                              &renderFinishedSemaphores_[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create semaphore");
         }
     }
 };
