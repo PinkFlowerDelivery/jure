@@ -33,7 +33,7 @@ VkPipelineLayout jvk::renderer::Rendering::createPipelineLayout() {
 };
 
 void jvk::renderer::Rendering::initUniformBuffers(VkPhysicalDevice pdevice, VkDevice device) {
-    for (int32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
         resources::UniformBuffer ubo(pdevice, device, sizeof(resources::ArcBallCameraUniform));
         uniformBuffers_.push_back(std::move(ubo));
     }
@@ -42,7 +42,7 @@ void jvk::renderer::Rendering::initUniformBuffers(VkPhysicalDevice pdevice, VkDe
 jvk::renderer::Rendering::Rendering(VkPhysicalDevice pdevice, VkDevice device,
                                     jvk::window::VulkanWindow& vkWindow, uint32_t graphicFamily,
                                     uint32_t presentFamily)
-    : device_(device) {
+    : device_(device), imagesCount_(vkWindow.getImages().size()) {
 
     initUniformBuffers(pdevice, device);
 
@@ -70,9 +70,12 @@ jvk::renderer::Rendering::Rendering(VkPhysicalDevice pdevice, VkDevice device,
 jvk::renderer::Rendering::~Rendering() {
     vkDeviceWaitIdle(device_);
 
-    for (int32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
         vkDestroyFence(device_, inFlightFences_[i], nullptr);
         vkDestroySemaphore(device_, imageAvailableSemaphores_[i], nullptr);
+    }
+
+    for (uint32_t i = 0; i < imagesCount_; i++) {
         vkDestroySemaphore(device_, renderFinishedSemaphores_[i], nullptr);
     }
 
@@ -248,7 +251,7 @@ void jvk::renderer::Rendering::createSyncObjects(VkDevice device, window::Vulkan
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (int32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
         if (vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr,
                               &imageAvailableSemaphores_[i]) != VK_SUCCESS ||
 

@@ -14,6 +14,7 @@ namespace jure::vk::renderer {
 
 class Rendering {
     VkDevice device_;
+    uint32_t imagesCount_;
 
     VkPipeline pipeline_;
     VkPipelineLayout pipelineLayout_;
@@ -26,7 +27,7 @@ class Rendering {
     VkQueue presentQueue_;
 
     size_t currentFrame_ = 0;
-    int32_t MAX_FRAMES_IN_FLIGHT_ = 3;
+    uint32_t MAX_FRAMES_IN_FLIGHT_ = 3;
 
     std::vector<VkSemaphore> imageAvailableSemaphores_;
     std::vector<VkFence> inFlightFences_;
