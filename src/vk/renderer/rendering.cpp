@@ -205,7 +205,6 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
     vkCmdBindVertexBuffers(currentCommandBuffer, 0, 1, &buffer, offsets.data());
     vkCmdBindDescriptorSets(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
                             0, 1, &dm_.getDescriptorSet(), 0, nullptr);
-    vkCmdBindIndexBuffer(currentCommandBuffer, indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
     vkCmdPipelineBarrier2(currentCommandBuffer, &colorDepInfo);
@@ -215,9 +214,9 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
 
     VkViewport viewport{};
     viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = vkWindow.getSwapchainDetails().extent.width;
-    viewport.height = vkWindow.getSwapchainDetails().extent.height;
+    viewport.y = static_cast<float>(vkWindow.getSwapchainDetails().extent.height);
+    viewport.width = static_cast<float>(vkWindow.getSwapchainDetails().extent.width);
+    viewport.height = -static_cast<float>(vkWindow.getSwapchainDetails().extent.height);
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -229,6 +228,8 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
     vkCmdSetScissor(currentCommandBuffer, 0, 1, &scissor);
 
     if (indexBuffer.getSize() > 0) {
+        vkCmdBindIndexBuffer(currentCommandBuffer, indexBuffer.getBuffer(), 0,
+                             VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(currentCommandBuffer, indexBuffer.getSize(), 1, 0, 0, 0);
     } else {
         vkCmdDraw(currentCommandBuffer, vBuffer.getSize(), 1, 0, 0);
