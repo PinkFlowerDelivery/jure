@@ -6,7 +6,6 @@
 #include "vk/renderer/pipeline_builder.h"
 #include "vk/resources/uniform_buffer.h"
 #include "vk/resources/vertex_buffer.h"
-#include "vk/window/swapchain.h"
 #include "vk/window/vk_window.h"
 #include <array>
 #include <cstdint>
@@ -102,8 +101,8 @@ void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWin
     auto& currentUniformBuffer = uniformBuffers_[currentFrame_];
 
     glm::mat4x4 viewMatrix = camera.getViewMatrix();
-    uint32_t width = vkWindow.getSwapchainDetails().extent.width;
-    uint32_t height = vkWindow.getSwapchainDetails().extent.height;
+    uint32_t width = vkWindow.getExtentWidth();
+    uint32_t height = vkWindow.getExtentHeight();
     glm::mat4x4 projMatrix = camera.getProjectionMatrix(width, height);
 
     currentUniformBuffer.upload(device_, viewMatrix, projMatrix);
@@ -190,7 +189,7 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
 
     VkRenderingInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea = {{0, 0}, vkWindow.getSwapchainDetails().extent};
+    renderingInfo.renderArea = {{0, 0}, vkWindow.getExtent()};
     renderingInfo.layerCount = 1;
     renderingInfo.viewMask = 0;
     renderingInfo.colorAttachmentCount = 1;
@@ -214,9 +213,9 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
 
     VkViewport viewport{};
     viewport.x = 0.0f;
-    viewport.y = static_cast<float>(vkWindow.getSwapchainDetails().extent.height);
-    viewport.width = static_cast<float>(vkWindow.getSwapchainDetails().extent.width);
-    viewport.height = -static_cast<float>(vkWindow.getSwapchainDetails().extent.height);
+    viewport.y = static_cast<float>(vkWindow.getExtentHeight());
+    viewport.width = static_cast<float>(vkWindow.getExtentWidth());
+    viewport.height = -static_cast<float>(vkWindow.getExtentHeight());
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -224,7 +223,7 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
 
     VkRect2D scissor{};
     scissor.offset = {0, 0};
-    scissor.extent = vkWindow.getSwapchainDetails().extent;
+    scissor.extent = vkWindow.getExtent();
     vkCmdSetScissor(currentCommandBuffer, 0, 1, &scissor);
 
     if (indexBuffer.getSize() > 0) {

@@ -26,6 +26,16 @@ class VulkanWindow {
     [[nodiscard]] SwapchainDetails& getSwapchainDetails() {
         return swapchainDetails_;
     }
+    [[nodiscard]] VkExtent2D getExtent() const {
+        return swapchainDetails_.extent;
+    }
+    [[nodiscard]] uint32_t getExtentWidth() const {
+        return swapchainDetails_.extent.width;
+    }
+    [[nodiscard]] uint32_t getExtentHeight() const {
+        return swapchainDetails_.extent.height;
+    }
+
     [[nodiscard]] std::vector<VkImage>& getImages() {
         return swapchainDetails_.images;
     }
