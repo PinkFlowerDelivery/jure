@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.25...4.4)
 
 project(jure VERSION 1.0)
 
@@ -18,7 +18,13 @@ FetchContent_Declare(
     GIT_TAG v3.0.0
 )
 
-FetchContent_MakeAvailable(fmt tinygltf)
+FetchContent_Declare(
+    tinyobjloader
+    GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader
+    GIT_TAG 45636bd
+)
+
+FetchContent_MakeAvailable(fmt tinygltf tinyobjloader)
 
 if (MSVC)
     add_compile_options(/W4)
@@ -54,10 +60,14 @@ set(source src/main.cpp
         src/vk/renderer/commands.cpp
         src/vk/renderer/memory_barriers.cpp
         src/vk/renderer/descriptorManager.cpp
+        
+        src/loaders/gltf_loader.cpp
+        src/loaders/obj_loader.cpp
+        src/loaders/stl_loader.cpp
 
         src/vk/utils/memory_utils.cpp
     )
 
 add_executable(jure ${source})
 target_include_directories(jure PRIVATE src)
-target_link_libraries(jure fmt::fmt Vulkan::Vulkan glfw glm::glm tinygltf)
+target_link_libraries(jure fmt::fmt Vulkan::Vulkan glfw glm::glm tinygltf tinyobjloader)

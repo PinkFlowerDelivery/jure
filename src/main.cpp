@@ -1,6 +1,9 @@
 #include "camera.h"
 #include "fmt/base.h"
 #include "glfw/initGlfw.h"
+#include "loaders/gltf_loader.h"
+#include "loaders/model_loader.h"
+#include "loaders/obj_loader.h"
 #include "tiny_gltf.h"
 #include "vk/core/vk_core.h"
 #include "vk/renderer/rendering.h"
@@ -12,25 +15,56 @@
 #include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <memory>
+#include <stdexcept>
+#include <string>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 using namespace jure::vk;
 
-int main() {
-    // <-
-    std::vector<resources::Vertex> vertices = {
-        {{-0.75f, -0.75f, 0.0f}, {1.0f, 0.0f, 0.0f}}, // V0 LEFT TOP
-        {{-0.75f, 0.25f, 0.0f}, {0.0f, 1.0f, 0.0f}},  // V1 LEFT BOTTOM
-        {{0.75f, 0.25f, 0.0f}, {0.0f, 0.0f, 1.0f}},   // V2 RIGHT BOTTOM
-        {{0.75f, -0.75f, 0.0f}, {1.0f, 0.0f, 0.0f}},  // V3 RIGHT TOP
-    };
+static double scrollY = 0.0;
+void scroll_callback(GLFWwindow* /*window*/, double /*xoffset*/, double yoffset) {
+    scrollY = yoffset;
+}
 
-    std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0, 0, 2, 1};
+std::string getFileExtension(const std::string& filepath) {
+    auto dotPosition = filepath.rfind('.');
+    if (dotPosition == std::string::npos) {
+        throw std::runtime_error("Unexpected file extension");
+    }
+    std::string fileExt = filepath.substr(dotPosition);
+
+    return fileExt;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc <= 1) {
+        fmt::println("Use: jure [filepath]");
+        return 0;
+    }
+
+    std::string filepath = argv[1];
+    auto fileExt = getFileExtension(filepath);
+
+    std::unique_ptr<jure::loaders::ModelLoader> modelLoader = nullptr;
+
+    if (fileExt == ".gltf") {
+        modelLoader = std::make_unique<jure::loaders::GLTFLoader>(true);
+    } else if (fileExt == ".glb") {
+        modelLoader = std::make_unique<jure::loaders::GLTFLoader>(false);
+    } else if (fileExt == ".obj") {
+        modelLoader = std::make_unique<jure::loaders::OBJLoader>();
+    } else if (fileExt == ".stl") {
+        // modelLoader = std::make_unique<jure::loaders::STLLoader>();
+    } else {
+        throw std::runtime_error("Unsupported model format.");
+    }
+
+    auto [vertices, indices] = modelLoader->load(filepath);
+    fmt::println("V: {}; I: {}", vertices.size(), indices.size());
 
     GLFWwindow* window = createWindow(640, 480, "vk");
-
-    fmt::println("V: {}; I: {}", vertices.size(), indices.size());
 
     core::VulkanCore core(window);
     window::VulkanWindow vkWindow(core, window);
@@ -43,7 +77,9 @@ int main() {
     size_t indexBufferSize = indices.size() * sizeof(indices[0]);
 
     resources::IndexBuffer indexBuffer(core.getPhysicalDevice(), core.getDevice(), indexBufferSize);
-    indexBuffer.uploadIndices(core.getDevice(), indices);
+    if (indexBufferSize != 0) {
+        indexBuffer.uploadIndices(core.getDevice(), indices);
+    }
     renderer::Rendering rendering(core.getPhysicalDevice(), core.getDevice(), vkWindow,
                                   core.getGraphicsFamilyIndex(), core.getPresentFamilyIndex());
 
@@ -56,6 +92,9 @@ int main() {
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        glfwSetScrollCallback(window, scroll_callback);
+        camera.setDistance(scrollY);
+        scrollY = 0.0;
         if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
             glfwGetCursorPos(window, &posX, &posY);
 

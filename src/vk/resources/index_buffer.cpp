@@ -1,4 +1,5 @@
 #include "index_buffer.h"
+#include "fmt/base.h"
 #include "vk/resources/buffer_manager.h"
 #include "vk/utils/memory_utils.h"
 #include <cstring>
@@ -7,6 +8,10 @@
 
 jure::vk::resources::IndexBuffer::IndexBuffer(VkPhysicalDevice physicalDevice, VkDevice device,
                                               size_t bufferSize) {
+    if (bufferSize == 0) {
+        fmt::println("Index buffer size is 0");
+        return;
+    }
     buffer_ = createBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, bufferSize);
 
     VkMemoryRequirements memReq;

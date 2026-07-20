@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fmt/base.h"
 #include <algorithm>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
@@ -13,6 +14,7 @@ class ArcBallCamera {
     float yaw = 0.0f;
     float pitch = 0.0f;
     float sensivity = 0.5f;
+    float zoomSensivity = 4.0f;
 
     [[nodiscard]] glm::vec3 getCameraPosition() const {
         glm::vec3 position;
@@ -32,8 +34,19 @@ class ArcBallCamera {
     };
 
     glm::mat4x4 getProjectionMatrix(float width, float height) {
-        auto matrix = glm::perspective(glm::radians(45.0f), (width / height), 0.1f, 100.0f);
+        auto matrix = glm::perspective(glm::radians(45.0f), (width / height), 0.1f, 10000.0f);
         return matrix;
+    }
+
+    void setDistance(double y) {
+        float min = 5.0;
+        float max = 250.0;
+
+        if (distance > max || distance < min) {
+            distance = std::clamp(distance, min, max);
+        }
+
+        distance -= y * zoomSensivity;
     }
 
     void addYaw(double x) {
