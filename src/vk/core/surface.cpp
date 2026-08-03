@@ -8,6 +8,7 @@ VkSurfaceKHR jure::vk::core::createSurface(VkInstance instance, GLFWwindow* wind
     VkSurfaceKHR surface;
 
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+
         throw std::runtime_error("Failed to create surface.");
     }
 

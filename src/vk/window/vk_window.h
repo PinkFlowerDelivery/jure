@@ -1,5 +1,6 @@
 #pragma once
 
+#include "loaders/model_loader.h"
 #include "vk/core/vk_core.h"
 #include "vk/window/image.h"
 #include "vk/window/swapchain.h"
@@ -18,8 +19,14 @@ class VulkanWindow {
     DepthImageContext depthImageContext_{};
     std::vector<VkImageView> imageViews_;
     VkImageView depthImageView_;
+    std::vector<TextureImage> textureImages_;
+    std::vector<VkImageView> textureImageViews_;
 
   public:
+    VulkanWindow(jure::vk::core::VulkanCore& core, GLFWwindow* window,
+                 std::vector<jure::loaders::Texture>& texture);
+    ~VulkanWindow();
+
     [[nodiscard]] VkSwapchainKHR& getSwapchain() {
         return swapchain_;
     }
@@ -54,8 +61,12 @@ class VulkanWindow {
     [[nodiscard]] VkFormat getImageFormat() const {
         return swapchainDetails_.imageFormat;
     }
-    VulkanWindow(jure::vk::core::VulkanCore& core, GLFWwindow* window);
-    ~VulkanWindow();
+    [[nodiscard]] std::vector<TextureImage>& getTextureImages() {
+        return textureImages_;
+    }
+    [[nodiscard]] std::vector<VkImageView>& getTextureImageView() {
+        return textureImageViews_;
+    }
 };
 
 } // namespace jure::vk::window

@@ -1,14 +1,14 @@
 #include "image_views.h"
 #include "vk/window/image.h"
 #include <stdexcept>
-#include <utility>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-std::pair<std::vector<VkImageView>, VkImageView>
+std::tuple<std::vector<VkImageView>, VkImageView, std::vector<VkImageView>>
 jure::vk::window::createImageViews(VkDevice device, VkSwapchainKHR swapchain,
                                    jure::vk::window::DepthImageContext depthImageContext,
-                                   VkFormat colorFormat) {
+                                   VkFormat colorFormat,
+                                   std::vector<jure::vk::window::TextureImage> textureImages) {
     std::vector<VkImageView> imageViews;
     VkImageView depthImageView;
 
@@ -67,5 +67,29 @@ jure::vk::window::createImageViews(VkDevice device, VkSwapchainKHR swapchain,
         throw std::runtime_error("Failed to create depth image view");
     }
 
-    return {imageViews, depthImageView};
+    std::vector<VkImageView> textureImageViews;
+
+    for (const auto& textureImage : textureImages) {
+
+        VkImageViewCreateInfo textureInfo{};
+        textureInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        textureInfo.image = textureImage.image;
+        textureInfo.format = textureImage.format;
+        textureInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        textureInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        textureInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        textureInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        textureInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        textureInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+        VkImageView textureImageView;
+
+        if (vkCreateImageView(device, &textureInfo, nullptr, &textureImageView) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create texture image view");
+        }
+
+        textureImageViews.push_back(textureImageView);
+    }
+
+    return {imageViews, depthImageView, textureImageViews};
 }

@@ -1,17 +1,17 @@
 #include "rendering.h"
 #include "camera.h"
 #include "vk/renderer/commands.h"
-#include "vk/renderer/descriptorManager.h"
+#include "vk/renderer/descriptor_manager.h"
 #include "vk/renderer/memory_barriers.h"
 #include "vk/renderer/pipeline_builder.h"
-#include "vk/resources/uniform_buffer.h"
-#include "vk/resources/vertex_buffer.h"
+#include "vk/resources/buffer.h"
 #include "vk/window/vk_window.h"
 #include <array>
 #include <cstdint>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/fwd.hpp>
 #include <stdexcept>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 namespace jvk = jure::vk;
@@ -19,8 +19,8 @@ namespace jvk = jure::vk;
 VkPipelineLayout jvk::renderer::Rendering::createPipelineLayout() {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.pSetLayouts = &dm_.getDescriptorSetLayout();
-    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = dm_.getDescriptorSetLayout();
+    pipelineLayoutInfo.setLayoutCount = dm_.getDescriptorSetLayoutSize();
 
     VkPipelineLayout layout;
 
@@ -33,7 +33,8 @@ VkPipelineLayout jvk::renderer::Rendering::createPipelineLayout() {
 
 void jvk::renderer::Rendering::initUniformBuffers(VkPhysicalDevice pdevice, VkDevice device) {
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++) {
-        resources::UniformBuffer ubo(pdevice, device, sizeof(resources::ArcBallCameraUniform));
+        resources::Buffer ubo(pdevice, device, sizeof(resources::ArcBallCameraUniform),
+                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
         uniformBuffers_.push_back(std::move(ubo));
     }
 };
@@ -41,14 +42,27 @@ void jvk::renderer::Rendering::initUniformBuffers(VkPhysicalDevice pdevice, VkDe
 jvk::renderer::Rendering::Rendering(VkPhysicalDevice pdevice, VkDevice device,
                                     jvk::window::VulkanWindow& vkWindow, uint32_t graphicFamily,
                                     uint32_t presentFamily)
-    : device_(device), imagesCount_(vkWindow.getImages().size()) {
+    : device_(device), imagesCount_(vkWindow.getImages().size()), dm_(device) {
 
     initUniformBuffers(pdevice, device);
 
     createSyncObjects(device, vkWindow);
 
-    dm_.init(device_);
-    dm_.updateDescriptorSets(uniformBuffers_, sizeof(resources::ArcBallCameraUniform));
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 16},
+    };
+
+    dm_.createDescriptorSetLayout(1, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                  VK_SHADER_STAGE_VERTEX_BIT);
+    dm_.createDescriptorSetLayout(vkWindow.getTextureImageView().size(), 0,
+                                  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                  VK_SHADER_STAGE_FRAGMENT_BIT);
+    dm_.createDescriptorPool(poolSizes);
+    dm_.allocateDescriptorSets();
+
+    dm_.updateDescriptorSets(uniformBuffers_, sizeof(resources::ArcBallCameraUniform),
+                             vkWindow.getTextureImageView());
 
     vkGetDeviceQueue(device, graphicFamily, 0, &graphicQueue_);
 
@@ -84,9 +98,10 @@ jvk::renderer::Rendering::~Rendering() {
 };
 
 void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWindow& vkWindow,
-                                         jvk::resources::VertexBuffer& vBuffer,
-                                         jvk::resources::IndexBuffer& indexBuffer,
-                                         ArcBallCamera camera) {
+                                         jvk::resources::Buffer& vBuffer,
+                                         jvk::resources::Buffer& indexBuffer, ArcBallCamera camera,
+                                         std::vector<loaders::Texture>& textures,
+                                         jvk::resources::Buffer& stagingBuffer) {
     vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
     vkResetFences(device_, 1, &inFlightFences_[currentFrame_]);
 
@@ -96,7 +111,8 @@ void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWin
 
     vkResetCommandBuffer(commandBuffers_[currentFrame_], 0);
 
-    recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, vBuffer, vkWindow, indexBuffer);
+    recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, vBuffer, vkWindow, indexBuffer,
+                        textures, stagingBuffer);
 
     auto& currentUniformBuffer = uniformBuffers_[currentFrame_];
 
@@ -105,7 +121,13 @@ void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWin
     uint32_t height = vkWindow.getExtentHeight();
     glm::mat4x4 projMatrix = camera.getProjectionMatrix(width, height);
 
-    currentUniformBuffer.upload(device_, viewMatrix, projMatrix);
+    void* mappedMemory = currentUniformBuffer.mapMemory();
+
+    memcpy(mappedMemory, &viewMatrix, sizeof(viewMatrix));
+    memcpy(static_cast<uint8_t*>(mappedMemory) + sizeof(viewMatrix), &projMatrix,
+           sizeof(viewMatrix));
+
+    currentUniformBuffer.unmapMemory();
 
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
@@ -139,11 +161,10 @@ void jvk::renderer::Rendering::drawFrame(VkDevice device, jvk::window::VulkanWin
     currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT_;
 }
 
-void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentCommandBuffer,
-                                                   uint32_t imageIndex,
-                                                   jvk::resources::VertexBuffer& vBuffer,
-                                                   jvk::window::VulkanWindow& vkWindow,
-                                                   jvk::resources::IndexBuffer& indexBuffer) {
+void jvk::renderer::Rendering::recordCommandBuffer(
+    VkCommandBuffer currentCommandBuffer, uint32_t imageIndex, jvk::resources::Buffer& vBuffer,
+    jvk::window::VulkanWindow& vkWindow, jvk::resources::Buffer& indexBuffer,
+    std::vector<loaders::Texture>& textures, jvk::resources::Buffer& stagingBuffer) {
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -154,20 +175,40 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
     auto depthBarrier = createDepthBarrier(vkWindow.getDepthImage());
     auto presentBarrier = createPresentBarrier(currentImage);
 
-    VkDependencyInfo colorDepInfo{};
-    colorDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    colorDepInfo.imageMemoryBarrierCount = 1;
-    colorDepInfo.pImageMemoryBarriers = &colorBarrier;
+    std::vector<VkImageMemoryBarrier2> textureWriteBarriers;
+    std::vector<VkImageMemoryBarrier2> textureShaderReadBarriers;
 
-    VkDependencyInfo depthDepInfo{};
-    depthDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    depthDepInfo.imageMemoryBarrierCount = 1;
-    depthDepInfo.pImageMemoryBarriers = &depthBarrier;
+    for (size_t i = 0; i < textures.size(); i++) {
+        VkImageMemoryBarrier2 writeBarrier =
+            createTextureWriteBarrier(vkWindow.getTextureImages()[i].image);
+        textureWriteBarriers.push_back(writeBarrier);
+
+        VkImageMemoryBarrier2 shaderReadBarrier =
+            createTextureShaderReadBarrier(vkWindow.getTextureImages()[i].image);
+        textureShaderReadBarriers.push_back(shaderReadBarrier);
+    }
+
+    std::vector<VkImageMemoryBarrier2> barriers{colorBarrier, depthBarrier};
+
+    VkDependencyInfo depInfo{};
+    depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    depInfo.imageMemoryBarrierCount = barriers.size();
+    depInfo.pImageMemoryBarriers = barriers.data();
 
     VkDependencyInfo presentDepInfo{};
     presentDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
     presentDepInfo.imageMemoryBarrierCount = 1;
     presentDepInfo.pImageMemoryBarriers = &presentBarrier;
+
+    VkDependencyInfo textureWriteDepInfo{};
+    textureWriteDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    textureWriteDepInfo.imageMemoryBarrierCount = textureWriteBarriers.size();
+    textureWriteDepInfo.pImageMemoryBarriers = textureWriteBarriers.data();
+
+    VkDependencyInfo textureShaderReadDepInfo{};
+    textureShaderReadDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    textureShaderReadDepInfo.imageMemoryBarrierCount = textureShaderReadBarriers.size();
+    textureShaderReadDepInfo.pImageMemoryBarriers = textureShaderReadBarriers.data();
 
     VkImageView currentImageView = vkWindow.getImageViews()[imageIndex];
 
@@ -202,12 +243,39 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
     VkBuffer buffer = vBuffer.getBuffer();
 
     vkCmdBindVertexBuffers(currentCommandBuffer, 0, 1, &buffer, offsets.data());
-    vkCmdBindDescriptorSets(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
-                            0, 1, &dm_.getDescriptorSet(), 0, nullptr);
-    vkCmdBindPipeline(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
-    vkCmdPipelineBarrier2(currentCommandBuffer, &colorDepInfo);
-    vkCmdPipelineBarrier2(currentCommandBuffer, &depthDepInfo);
+    vkCmdBindPipeline(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+    vkCmdBindDescriptorSets(currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
+                            0, dm_.getDescriptorSetSize(), dm_.getDescriptorSet(), 0, nullptr);
+
+    vkCmdPipelineBarrier2(currentCommandBuffer, &depInfo);
+
+    vkCmdPipelineBarrier2(currentCommandBuffer, &textureWriteDepInfo);
+
+    VkImageSubresourceLayers imageSubLayers{};
+    imageSubLayers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageSubLayers.mipLevel = 0;
+    imageSubLayers.baseArrayLayer = 0;
+    imageSubLayers.layerCount = 1;
+
+    size_t bufferOffset = 0;
+    for (size_t i = 0; i < textures.size(); i++) {
+        VkBufferImageCopy bufferImageCopy{};
+        bufferImageCopy.bufferOffset = bufferOffset;
+        bufferImageCopy.bufferRowLength = 0;
+        bufferImageCopy.bufferImageHeight = 0;
+        bufferImageCopy.imageExtent = textures[i].extent;
+        bufferImageCopy.imageOffset = {0, 0, 0};
+        bufferImageCopy.imageSubresource = imageSubLayers;
+
+        vkCmdCopyBufferToImage(currentCommandBuffer, stagingBuffer.getBuffer(),
+                               vkWindow.getTextureImages()[i].image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
+
+        bufferOffset += textures[i].data.size();
+    }
+
+    vkCmdPipelineBarrier2(currentCommandBuffer, &textureShaderReadDepInfo);
 
     vkCmdBeginRendering(currentCommandBuffer, &renderingInfo);
 
@@ -236,6 +304,7 @@ void jvk::renderer::Rendering::recordCommandBuffer(VkCommandBuffer currentComman
 
     vkCmdEndRendering(currentCommandBuffer);
     vkCmdPipelineBarrier2(currentCommandBuffer, &presentDepInfo);
+
     vkEndCommandBuffer(currentCommandBuffer);
 };
 

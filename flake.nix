@@ -21,6 +21,7 @@
             glslang
             pkg-config
             llvm
+            renderdoc
           ];
 
           buildInputs = with pkgs; [

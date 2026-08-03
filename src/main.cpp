@@ -7,10 +7,10 @@
 #include "tiny_gltf.h"
 #include "vk/core/vk_core.h"
 #include "vk/renderer/rendering.h"
-#include "vk/resources/index_buffer.h"
-#include "vk/resources/vertex_buffer.h"
+#include "vk/resources/buffer.h"
 #include "vk/window/vk_window.h"
 #include <GLFW/glfw3.h>
+#include <cstring>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/fwd.hpp>
 #include <glm/glm.hpp>
@@ -18,6 +18,8 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
+#include <vulkan/vulkan_core.h>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
@@ -38,6 +40,8 @@ std::string getFileExtension(const std::string& filepath) {
     return fileExt;
 }
 
+jure::loaders::Texture dummyTexture = {{1, 1, 1}, {255, 255, 255, 255}};
+
 int main(int argc, char* argv[]) {
     if (argc <= 1) {
         fmt::println("Use: jure [filepath]");
@@ -55,31 +59,55 @@ int main(int argc, char* argv[]) {
         modelLoader = std::make_unique<jure::loaders::GLTFLoader>(false);
     } else if (fileExt == ".obj") {
         modelLoader = std::make_unique<jure::loaders::OBJLoader>();
-    } else if (fileExt == ".stl") {
-        // modelLoader = std::make_unique<jure::loaders::STLLoader>();
     } else {
         throw std::runtime_error("Unsupported model format.");
     }
 
-    auto [vertices, indices] = modelLoader->load(filepath);
-    fmt::println("V: {}; I: {}", vertices.size(), indices.size());
+    jure::loaders::Model model = modelLoader->load(filepath);
+    fmt::println("V: {}; I: {}", model.vertices.size(), model.indices.size());
+
+    if (model.textures.size() <= 16) {
+        size_t needPush = 16 - model.textures.size();
+        for (size_t i = 0; i < needPush; i++) {
+            model.textures.push_back(dummyTexture);
+        }
+    }
 
     GLFWwindow* window = createWindow(640, 480, "vk");
 
     core::VulkanCore core(window);
-    window::VulkanWindow vkWindow(core, window);
+    window::VulkanWindow vkWindow(core, window, model.textures);
 
-    size_t vertexBufferSize = vertices.size() * sizeof(vertices[0]);
-    resources::VertexBuffer vertexBuffer(core.getPhysicalDevice(), core.getDevice(),
-                                         vertexBufferSize);
-    vertexBuffer.uploadVerticies(core.getDevice(), vertices);
+    size_t verticesSize = sizeof(model.vertices[0]) * model.vertices.size();
+    jure::vk::resources::Buffer vertexBuffer(core.getPhysicalDevice(), core.getDevice(),
+                                             model.vertices, verticesSize, model.vertices.size(),
+                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
-    size_t indexBufferSize = indices.size() * sizeof(indices[0]);
+    size_t indicesSize = sizeof(model.indices[0]) * model.indices.size();
+    jure::vk::resources::Buffer indexBuffer(core.getPhysicalDevice(), core.getDevice(),
+                                            model.indices, indicesSize, model.indices.size(),
+                                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-    resources::IndexBuffer indexBuffer(core.getPhysicalDevice(), core.getDevice(), indexBufferSize);
-    if (indexBufferSize != 0) {
-        indexBuffer.uploadIndices(core.getDevice(), indices);
+    size_t stagingSize = 0;
+    for (auto& texture : model.textures) {
+        stagingSize += sizeof(texture.data[0]) * texture.data.size();
+    };
+
+    resources::Buffer stagingBuffer = resources::Buffer(
+        core.getPhysicalDevice(), core.getDevice(), stagingSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+    void* stagingMemory = stagingBuffer.mapMemory();
+
+    size_t offset = 0;
+    for (const auto& texture : model.textures) {
+        std::memcpy((static_cast<uint8_t*>(stagingMemory) + offset), texture.data.data(),
+                    texture.data.size());
+
+        offset += texture.data.size();
     }
+
+    stagingBuffer.unmapMemory();
+
     renderer::Rendering rendering(core.getPhysicalDevice(), core.getDevice(), vkWindow,
                                   core.getGraphicsFamilyIndex(), core.getPresentFamilyIndex());
 
@@ -107,6 +135,7 @@ int main(int argc, char* argv[]) {
             oldX = posX;
             oldY = posY;
         }
-        rendering.drawFrame(core.getDevice(), vkWindow, vertexBuffer, indexBuffer, camera);
+        rendering.drawFrame(core.getDevice(), vkWindow, vertexBuffer, indexBuffer, camera,
+                            model.textures, stagingBuffer);
     }
 }

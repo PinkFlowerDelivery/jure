@@ -1,10 +1,8 @@
 #pragma once
 
 #include "camera.h"
-#include "vk/renderer/descriptorManager.h"
-#include "vk/resources/index_buffer.h"
-#include "vk/resources/uniform_buffer.h"
-#include "vk/resources/vertex_buffer.h"
+#include "vk/renderer/descriptor_manager.h"
+#include "vk/resources/buffer.h"
 #include "vk/window/vk_window.h"
 #include <cstdint>
 #include <vector>
@@ -33,23 +31,26 @@ class Rendering {
     std::vector<VkFence> inFlightFences_;
     std::vector<VkSemaphore> renderFinishedSemaphores_;
 
-    std::vector<resources::UniformBuffer> uniformBuffers_;
+    std::vector<resources::Buffer> uniformBuffers_;
 
     void createSyncObjects(VkDevice device, window::VulkanWindow& vkWindow);
     void recordCommandBuffer(VkCommandBuffer currentCommandBuffer, uint32_t imageIndex,
-                             resources::VertexBuffer& vBuffer, window::VulkanWindow& vkWindow,
-                             resources::IndexBuffer& indexBuffer);
+                             resources::Buffer& vBuffer, window::VulkanWindow& vkWindow,
+                             resources::Buffer& indexBuffer,
+                             std::vector<loaders::Texture>& textures,
+                             jure::vk::resources::Buffer& stagingBuffer);
 
     VkPipelineLayout createPipelineLayout();
     void initUniformBuffers(VkPhysicalDevice pdevice, VkDevice device);
 
   public:
     Rendering(VkPhysicalDevice pdevice, VkDevice device, window::VulkanWindow& vkWindow,
-              uint32_t graphicFamily, uint32_t presentFamilyr);
+              uint32_t graphicFamily, uint32_t presentFamily);
 
     ~Rendering();
-    void drawFrame(VkDevice device, window::VulkanWindow& vkWindow,
-                   resources::VertexBuffer& vBuffer, resources::IndexBuffer& indexBuffer,
-                   ArcBallCamera camera);
+    void drawFrame(VkDevice device, window::VulkanWindow& vkWindow, resources::Buffer& vBuffer,
+                   resources::Buffer& indexBuffer, ArcBallCamera camera,
+                   std::vector<loaders::Texture>& textures,
+                   jure::vk::resources::Buffer& stagingBuffer);
 };
 } // namespace jure::vk::renderer

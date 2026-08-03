@@ -2,13 +2,16 @@
 #include "fmt/base.h"
 #include "fmt/format.h"
 #include "loaders/model_loader.h"
+#include "vk/resources/structures.h"
+#include <glm/fwd.hpp>
 #include <stdexcept>
 #include <tiny_gltf.h>
 #include <utility>
 #include <vector>
 
 namespace jl = jure::loaders;
-std::pair<jl::VertexVector, jl::IndexVector> jl::GLTFLoader::load(const std::string& filepath) {
+
+jl::Model jl::GLTFLoader::load(const std::string& filepath) {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string err;
@@ -16,6 +19,7 @@ std::pair<jl::VertexVector, jl::IndexVector> jl::GLTFLoader::load(const std::str
 
     jl::VertexVector vertices;
     jl::IndexVector indices;
+    std::vector<jure::loaders::Texture> textures;
 
     bool res;
 
@@ -42,6 +46,12 @@ std::pair<jl::VertexVector, jl::IndexVector> jl::GLTFLoader::load(const std::str
 
         for (tinygltf::Primitive& primitive : mesh.primitives) {
             auto position = primitive.attributes.find("POSITION");
+            auto texCoords = primitive.attributes.find("TEXCOORD_0");
+
+            if (texCoords == primitive.attributes.end()) {
+                texCoords->second = 0;
+            }
+
             if (position == primitive.attributes.end()) {
                 continue;
             }
@@ -49,20 +59,62 @@ std::pair<jl::VertexVector, jl::IndexVector> jl::GLTFLoader::load(const std::str
             if (primitive.indices != -1) {
                 fmt::println("Vertex indices is supported");
                 indices = parseIndices(model, primitive.indices);
-
-            } else {
-                fmt::println("Vertex indices is unsupported");
             }
 
-            vertices = parseVertices(model, position->second);
+            ssize_t texIndex = 0;
+
+            if (model.textures.size() > 0) {
+                auto material = model.materials[primitive.material];
+                textures.push_back(loadTextures(model, material, texIndex));
+            }
+
+            vertices = parseVertices(model, position->second, texCoords->second, texIndex);
         }
     }
 
-    return {vertices, indices};
+    return {vertices, indices, textures};
 }
 
-jl::VertexVector jl::GLTFLoader::parseVertices(tinygltf::Model& model, int32_t position) {
+jure::loaders::Texture jl::GLTFLoader::loadTextures(tinygltf::Model& model,
+                                                    tinygltf::Material material,
+                                                    ssize_t& texIndex) {
+    if (material.pbrMetallicRoughness.baseColorTexture.index != -1) {
+        texIndex = material.pbrMetallicRoughness.baseColorTexture.index;
+
+        ssize_t imageIndex = 0;
+
+        if (texIndex >= 0 && texIndex < static_cast<ssize_t>(model.textures.size())) {
+            imageIndex = model.textures[texIndex].source;
+        }
+
+        if (imageIndex >= 0) {
+            const auto& image = model.images[imageIndex];
+
+            if (!image.image.empty()) {
+                Texture texture;
+                texture.data = image.image;
+                texture.extent = {static_cast<uint32_t>(image.width),
+                                  static_cast<uint32_t>(image.height), 1};
+                return texture;
+            }
+
+            if (!image.uri.empty()) {
+                return loadTexture(image.uri);
+            }
+        }
+    }
+
+    return {};
+};
+
+jl::VertexVector jl::GLTFLoader::parseVertices(tinygltf::Model& model, int32_t position,
+                                               int32_t texIndex, size_t index) {
     jl::VertexVector vertices;
+    jure::vk::resources::Vertex vertex;
+
+    tinygltf::Accessor texAccessor = model.accessors[texIndex];
+    tinygltf::BufferView texBufferView = model.bufferViews[texAccessor.bufferView];
+    tinygltf::Buffer texBuffer = model.buffers[texBufferView.buffer];
 
     tinygltf::Accessor accessor = model.accessors[position];
     tinygltf::BufferView bufferView = model.bufferViews[accessor.bufferView];
@@ -72,18 +124,26 @@ jl::VertexVector jl::GLTFLoader::parseVertices(tinygltf::Model& model, int32_t p
         throw std::runtime_error("Unsupported vertex position format.");
     }
 
-    auto* dataPtr = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
+    auto* texDataPtr = texBuffer.data.data() + texAccessor.byteOffset + texBufferView.byteOffset;
+    size_t texByteStride = texAccessor.ByteStride(texBufferView);
 
+    auto* dataPtr = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
     size_t byteStride = accessor.ByteStride(bufferView);
 
     for (size_t i = 0; i < accessor.count; i++) {
         const auto* position = reinterpret_cast<const float*>((dataPtr + (i * byteStride)));
 
-        float x = position[0];
-        float y = position[1];
-        float z = position[2];
+        const auto* texCoords = reinterpret_cast<const float*>((texDataPtr + (i * texByteStride)));
 
-        vertices.push_back({{x, y, z}, {61.0f, 61.0f, 61.0f}});
+        vertex.uv = {texCoords[0], texCoords[1]};
+
+        vertex.pos.x = position[0];
+        vertex.pos.y = position[1];
+        vertex.pos.z = position[2];
+
+        vertex.texIndex = index;
+
+        vertices.push_back(vertex);
     }
 
     return vertices;

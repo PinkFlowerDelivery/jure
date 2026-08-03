@@ -40,7 +40,7 @@ class ArcBallCamera {
 
     void setDistance(double y) {
         float min = 5.0;
-        float max = 250.0;
+        float max = 1000.0;
 
         if (distance > max || distance < min) {
             distance = std::clamp(distance, min, max);

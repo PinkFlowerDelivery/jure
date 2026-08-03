@@ -50,24 +50,26 @@ set(source src/main.cpp
         src/vk/window/image.cpp
         src/vk/window/vk_window.cpp
 
-        src/vk/resources/buffer_manager.cpp
-        src/vk/resources/vertex_buffer.cpp
-        src/vk/resources/index_buffer.cpp
-        src/vk/resources/uniform_buffer.cpp
+        src/vk/resources/buffer.cpp
 
         src/vk/renderer/pipeline_builder.cpp
         src/vk/renderer/rendering.cpp
         src/vk/renderer/commands.cpp
         src/vk/renderer/memory_barriers.cpp
-        src/vk/renderer/descriptorManager.cpp
+        src/vk/renderer/descriptor_manager.cpp
         
+        src/loaders/model_loader.cpp
         src/loaders/gltf_loader.cpp
         src/loaders/obj_loader.cpp
-        src/loaders/stl_loader.cpp
 
         src/vk/utils/memory_utils.cpp
     )
 
 add_executable(jure ${source})
+
+add_library(stb_image INTERFACE)
+target_include_directories(stb_image INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/includes)
+target_compile_definitions(jure PRIVATE TINYGLTF_NO_INCLUDE_STB_IMAGE)
+
 target_include_directories(jure PRIVATE src)
-target_link_libraries(jure fmt::fmt Vulkan::Vulkan glfw glm::glm tinygltf tinyobjloader)
+target_link_libraries(jure fmt::fmt Vulkan::Vulkan glfw glm::glm tinygltf tinyobjloader stb_image)

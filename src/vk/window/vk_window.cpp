@@ -6,7 +6,8 @@
 
 namespace jvk = jure::vk;
 
-jvk::window::VulkanWindow::VulkanWindow(jvk::core::VulkanCore& core, GLFWwindow* window) {
+jvk::window::VulkanWindow::VulkanWindow(jure::vk::core::VulkanCore& core, GLFWwindow* window,
+                                        std::vector<jure::loaders::Texture>& texture) {
     device_ = core.getDevice();
 
     auto [swapchain, swapchainDetails] =
@@ -17,10 +18,15 @@ jvk::window::VulkanWindow::VulkanWindow(jvk::core::VulkanCore& core, GLFWwindow*
     swapchainDetails_ = swapchainDetails;
 
     depthImageContext_ =
-        createImage(core.getPhysicalDevice(), core.getDevice(), swapchainDetails_.extent);
+        createDepthImage(core.getPhysicalDevice(), core.getDevice(), swapchainDetails_.extent);
 
-    auto [imageViews, depthImageView] = createImageViews(
-        core.getDevice(), swapchain_, depthImageContext_, swapchainDetails_.imageFormat);
+    textureImages_ = createTextureImage(core.getPhysicalDevice(), core.getDevice(), texture);
+
+    auto [imageViews, depthImageView, textureImageView] =
+        createImageViews(core.getDevice(), swapchain_, depthImageContext_,
+                         swapchainDetails_.imageFormat, textureImages_);
+
+    textureImageViews_ = textureImageView;
 
     imageViews_ = imageViews;
     depthImageView_ = depthImageView;
@@ -29,8 +35,17 @@ jvk::window::VulkanWindow::VulkanWindow(jvk::core::VulkanCore& core, GLFWwindow*
 jvk::window::VulkanWindow::~VulkanWindow() {
     vkDestroyImageView(device_, depthImageView_, nullptr);
 
+    for (VkImageView textureImageView : textureImageViews_) {
+        vkDestroyImageView(device_, textureImageView, nullptr);
+    }
+
     for (VkImageView imageView : imageViews_) {
         vkDestroyImageView(device_, imageView, nullptr);
+    }
+
+    for (auto const& textureImage : textureImages_) {
+        vkDestroyImage(device_, textureImage.image, nullptr);
+        vkFreeMemory(device_, textureImage.memory, nullptr);
     }
 
     vkDestroyImage(device_, depthImageContext_.image, nullptr);

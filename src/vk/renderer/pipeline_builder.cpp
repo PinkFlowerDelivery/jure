@@ -1,5 +1,5 @@
 #include "pipeline_builder.h"
-#include "vk/resources/vertex_buffer.h"
+#include "vk/resources/structures.h"
 #include <fstream>
 #include <glm/ext/scalar_constants.hpp>
 #include <ios>
@@ -85,20 +85,34 @@ PipelineBuilder& PipelineBuilder::useDefaultConfiguration() {
     bindingDescriptions.push_back(bindingDescription);
 
     // WARN: Hardcoded format
-    VkVertexInputAttributeDescription PositionAttrDescription{};
-    PositionAttrDescription.location = 0;
-    PositionAttrDescription.binding = 0;
-    PositionAttrDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-    PositionAttrDescription.offset = offsetof(jure::vk::resources::Vertex, pos);
+    VkVertexInputAttributeDescription positionAttrDescription{};
+    positionAttrDescription.location = 0;
+    positionAttrDescription.binding = 0;
+    positionAttrDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+    positionAttrDescription.offset = offsetof(jure::vk::resources::Vertex, pos);
 
-    VkVertexInputAttributeDescription ColorAttrDescription{};
-    ColorAttrDescription.location = 1;
-    ColorAttrDescription.binding = 0;
-    ColorAttrDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-    ColorAttrDescription.offset = offsetof(jure::vk::resources::Vertex, color);
+    VkVertexInputAttributeDescription colorAttrDescription{};
+    colorAttrDescription.location = 1;
+    colorAttrDescription.binding = 0;
+    colorAttrDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+    colorAttrDescription.offset = offsetof(jure::vk::resources::Vertex, color);
 
-    attrDescriptions.push_back(PositionAttrDescription);
-    attrDescriptions.push_back(ColorAttrDescription);
+    VkVertexInputAttributeDescription uvAttrDescription{};
+    uvAttrDescription.location = 2;
+    uvAttrDescription.binding = 0;
+    uvAttrDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+    uvAttrDescription.offset = offsetof(jure::vk::resources::Vertex, uv);
+
+    VkVertexInputAttributeDescription texIndexAttrDescription{};
+    texIndexAttrDescription.location = 3;
+    texIndexAttrDescription.binding = 0;
+    texIndexAttrDescription.format = VK_FORMAT_R32_UINT;
+    texIndexAttrDescription.offset = offsetof(jure::vk::resources::Vertex, texIndex);
+
+    attrDescriptions.push_back(positionAttrDescription);
+    attrDescriptions.push_back(colorAttrDescription);
+    attrDescriptions.push_back(uvAttrDescription);
+    attrDescriptions.push_back(texIndexAttrDescription);
 
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
