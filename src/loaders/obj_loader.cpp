@@ -3,93 +3,78 @@
 #include "fmt/format.h"
 #include "loaders/model_loader.h"
 #include "tiny_obj_loader.h"
+#include "vk/resources/structures.h"
 #include <glm/ext/vector_float3.hpp>
 #include <glm/fwd.hpp>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 
 namespace jl = jure::loaders;
+namespace jvk = jure::vk;
 
 jl::Model jl::OBJLoader::load(const std::string& filepath) {
-    tinyobj::ObjReaderConfig reader_config;
-
-    auto path = filepath.find_last_of("/");
-    auto mtlPath = filepath.substr(0, path);
-    reader_config.mtl_search_path = mtlPath;
-
-    std::vector<jure::loaders::Texture> textures;
 
     tinyobj::ObjReader reader;
+    tinyobj::ObjReaderConfig readerConfig;
+
+    auto lastSlashPos = filepath.find_last_of('/');
+    auto mtlSearchPath = filepath.substr(0, lastSlashPos);
+    readerConfig.mtl_search_path = mtlSearchPath;
 
     if (!reader.ParseFromFile(filepath)) {
         if (!reader.Error().empty()) {
             throw std::runtime_error(
-                fmt::format("Failed to parse obj model. Err: {}", reader.Error()));
+                fmt::format("Failed to parse obj model. Error: {}", reader.Error()));
         }
     }
 
     if (!reader.Warning().empty()) {
-        fmt::println("Obj parser warn: {}", reader.Warning());
+        fmt::println("[OBJ] warn: {}", reader.Warning());
     }
 
     const auto& attrib = reader.GetAttrib();
     const auto& materials = reader.GetMaterials();
     const auto& shapes = reader.GetShapes();
 
-    for (const auto& material : materials) {
-        if (!material.diffuse_texname.empty()) {
-            auto texturePath = mtlPath + '/' + material.diffuse_texname;
-
-            textures.push_back(loadTexture(texturePath));
-        }
-    }
-
-    auto [vertices, indices] = parseVerticesAndIndices(shapes, attrib);
-
-    return {std::move(vertices), std::move(indices), std::move(textures)};
-}
-
-std::pair<jl::VertexVector, jl::IndexVector>
-jl::OBJLoader::parseVerticesAndIndices(const std::vector<tinyobj::shape_t> shapes,
-                                       const tinyobj::attrib_t& attrib) {
-    std::unordered_map<jure::vk::resources::Vertex, uint32_t> indexMap{};
     jl::VertexVector vertices;
     jl::IndexVector indices;
+    std::vector<Texture> textures = loadTextures(materials, mtlSearchPath);
 
-    for (size_t s = 0; s < shapes.size(); s++) {
+    std::unordered_map<jure::vk::resources::Vertex, uint32_t> indexMap{};
+
+    for (const auto& shape : shapes) {
+        const auto& mesh = shape.mesh;
         size_t indexOffset = 0;
 
-        for (size_t shapeIndex = 0; shapeIndex < shapes[s].mesh.num_face_vertices.size();
-             shapeIndex++) {
+        for (size_t faceIndex = 0; faceIndex < mesh.num_face_vertices.size(); faceIndex++) {
 
-            auto fv = size_t(shapes[s].mesh.num_face_vertices[shapeIndex]);
-
-            if (fv != 3) {
+            size_t vertexCount = mesh.num_face_vertices[faceIndex];
+            if (vertexCount > 3) {
                 throw std::runtime_error("Supported only 3 vertices per face");
             }
 
-            for (size_t v = 0; v < fv; v++) {
-                tinyobj::index_t idx = shapes[s].mesh.indices[indexOffset + v];
-                jure::vk::resources::Vertex vertex;
-                vertex.color = {1.0f, 0.0f, 0.0f};
+            for (size_t vIdx = 0; vIdx < vertexCount; vIdx++) {
+                tinyobj::index_t idx = mesh.indices[indexOffset + vIdx];
+                jvk::resources::Vertex vertex;
 
-                vertex.pos.x = attrib.vertices[(3 * size_t(idx.vertex_index)) + 0];
-                vertex.pos.y = attrib.vertices[(3 * size_t(idx.vertex_index)) + 1];
-                vertex.pos.z = attrib.vertices[(3 * size_t(idx.vertex_index)) + 2];
+                vertex.pos.x = attrib.vertices[(3 * idx.vertex_index) + 0];
+                vertex.pos.y = attrib.vertices[(3 * idx.vertex_index) + 1];
+                vertex.pos.z = attrib.vertices[(3 * idx.vertex_index) + 2];
 
                 if (idx.texcoord_index >= 0) {
-                    vertex.uv.x = attrib.texcoords[(2 * size_t(idx.texcoord_index)) + 0];
-                    vertex.uv.y = -attrib.texcoords[(2 * size_t(idx.texcoord_index)) + 1];
+                    vertex.uv.x = attrib.texcoords[(2 * idx.texcoord_index) + 0];
+                    vertex.uv.y = -attrib.texcoords[(2 * idx.texcoord_index) + 1];
                 }
 
-                if (shapes[s].mesh.material_ids[s] >= 0) {
-                    vertex.texIndex = shapes[s].mesh.material_ids[s];
+                if (mesh.material_ids[faceIndex] >= 0) {
+                    vertex.texIndex = mesh.material_ids[faceIndex];
                 }
+
+                vertex.color = {1.0f, 0.0f, 0.0f};
 
                 if (indexMap.find(vertex) == indexMap.end()) {
                     vertices.push_back(vertex);
@@ -99,9 +84,25 @@ jl::OBJLoader::parseVerticesAndIndices(const std::vector<tinyobj::shape_t> shape
                 indices.push_back(indexMap[vertex]);
             }
 
-            indexOffset += fv;
-        };
+            indexOffset += vertexCount;
+        }
     }
 
-    return {vertices, indices};
+    return {vertices, indices, textures};
+}
+
+std::vector<jl::Texture>
+jl::OBJLoader::loadTextures(const std::vector<tinyobj::material_t>& materials,
+                            const std::string& textureDir) {
+    std::vector<jl::Texture> textures;
+
+    for (const auto& material : materials) {
+        if (!material.diffuse_texname.empty()) {
+            auto texturePath = textureDir + '/' + material.diffuse_texname;
+
+            textures.push_back(loadTexture(texturePath));
+        }
+    }
+
+    return textures;
 };
