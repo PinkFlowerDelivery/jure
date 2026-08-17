@@ -1,7 +1,7 @@
 #include "model_loader.h"
 #include <stdexcept>
 
-jure::loaders::Texture jure::loaders::ModelLoader::ModelLoader::loadTexture(std::string filepath) {
+jure::loaders::Texture jure::loaders::ModelLoader::ModelLoader::parseTexture(std::string filepath) {
     int32_t w;
     int32_t h;
     int32_t channels;

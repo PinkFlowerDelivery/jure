@@ -33,7 +33,7 @@ struct Model {
 
 class ModelLoader {
   protected:
-    Texture loadTexture(std::string filepath);
+    Texture parseTexture(std::string filepath);
 
   public:
     virtual Model load(const std::string& filepath) = 0;

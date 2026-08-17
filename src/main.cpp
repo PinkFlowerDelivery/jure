@@ -10,6 +10,7 @@
 #include "vk/resources/buffer.h"
 #include "vk/window/vk_window.h"
 #include <GLFW/glfw3.h>
+#include <cstdint>
 #include <cstring>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/fwd.hpp>

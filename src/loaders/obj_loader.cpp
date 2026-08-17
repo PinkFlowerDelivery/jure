@@ -100,7 +100,7 @@ jl::OBJLoader::loadTextures(const std::vector<tinyobj::material_t>& materials,
         if (!material.diffuse_texname.empty()) {
             auto texturePath = textureDir + '/' + material.diffuse_texname;
 
-            textures.push_back(loadTexture(texturePath));
+            textures.push_back(parseTexture(texturePath));
         }
     }
 

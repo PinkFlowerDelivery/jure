@@ -8,11 +8,11 @@ namespace jure::loaders {
 class GLTFLoader : public ModelLoader {
     bool isASCII_;
 
-    IndexVector parseIndices(tinygltf::Model& model, int32_t primitiveIndices);
-    VertexVector parseVertices(tinygltf::Model& model, int32_t position, int32_t texIndex,
-                               size_t index);
-    jure::loaders::Texture loadTextures(tinygltf::Model& model, tinygltf::Material material,
-                                        ssize_t& texIndex);
+    void parseIndices(const tinygltf::Model& model, int32_t primitiveIndices, size_t verticesSize,
+                      std::vector<uint32_t>& outIndices);
+    void parseVertices(tinygltf::Model& model, int32_t position, int32_t texCoords, size_t texIndex,
+                       VertexVector& vertices);
+    jure::loaders::Texture loadTexture(tinygltf::Model& model, ssize_t texIndex);
 
   public:
     GLTFLoader(bool isASCII) : isASCII_(isASCII) {};
